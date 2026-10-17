@@ -4,71 +4,59 @@ import { ApiError, apiForm, apiGet, apiJson } from "../api"
 import type { Identity } from "../domain/models"
 import { imageForm, prepareImage } from "../media"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
 import { LibraryScreen } from "./LibraryScreen"
+import { LibraryTransfer } from "./LibraryTransfer"
+
+type IdentityDraft = { kind: "wordmark" | "logo"; name: string; text: string; groupId: string }
 
 export function IdentitiesPage() {
   const queryClient = useQueryClient()
-  const identities = useQuery({
-    queryKey: ["identities"],
-    queryFn: () => apiGet<Identity[]>("/api/identities"),
-  })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [kind, setKind] = useState<"wordmark" | "logo">("wordmark")
-  const [name, setName] = useState("")
-  const [text, setText] = useState("")
-  const [file, setFile] = useState<File | null>(null)
+  const identities = useQuery({ queryKey: ["identities"], queryFn: () => apiGet<Identity[]>("/api/identities") })
+  const [filter, setFilter] = useState<DrawerFilter>("all")
+  const [selected, setSelected] = useState<string[]>([])
+  const [creating, setCreating] = useState<"wordmark" | "logo" | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const selected = identities.data?.find((item) => item.id === selectedId) ?? null
+  const visible = inDrawer(identities.data ?? [], filter)
+  const chosen = (identities.data ?? []).filter((item) => selected.includes(item.id))
+  const single = chosen.length === 1 ? chosen[0] : null
+  const mode = single?.kind ?? creating ?? "wordmark"
 
-  function beginWordmark() {
-    setSelectedId(null)
-    setKind("wordmark")
-    setName("")
-    setText("")
-    setFile(null)
+  function toggle(id: string) {
+    setCreating(null)
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
     setError(null)
   }
 
-  function beginLogo() {
-    setSelectedId(null)
-    setKind("logo")
-    setName("")
-    setText("")
-    setFile(null)
-    setError(null)
-  }
-
-  function beginEdit(item: Identity) {
-    setSelectedId(item.id)
-    setKind(item.kind)
-    setName(item.name)
-    setText(item.text)
-    setFile(null)
+  function begin(kind: "wordmark" | "logo") {
+    setSelected([])
+    setCreating(kind)
     setError(null)
   }
 
   const save = useMutation({
-    mutationFn: async () => {
-      if (kind === "wordmark") {
-        const payload = { kind: "wordmark" as const, name, text }
-        return selected
-          ? apiJson<Identity>(`/api/identities/${selected.id}`, "PATCH", payload)
+    mutationFn: async (input: { draft: IdentityDraft; file: File | null }) => {
+      const groupId = input.draft.groupId === "none" ? null : input.draft.groupId
+      if (input.draft.kind === "wordmark") {
+        const payload = { kind: "wordmark" as const, name: input.draft.name, text: input.draft.text, groupId }
+        return single
+          ? apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", payload)
           : apiJson<Identity>("/api/identities", "POST", payload)
       }
-      if (!file && !selected) throw new ApiError("Elige el archivo del logo")
-      if (!file && selected) {
-        return apiJson<Identity>(`/api/identities/${selected.id}`, "PATCH", { name })
+      if (!input.file && !single) throw new ApiError("Elige el archivo del logo")
+      if (!input.file && single) {
+        return apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", { name: input.draft.name, groupId })
       }
-      if (!file) throw new ApiError("Elige el archivo del logo")
-      const prepared = await prepareImage(file)
-      const body = imageForm(prepared, name || file.name)
-      return selected
-        ? apiForm<Identity>(`/api/identities/${selected.id}`, "PATCH", body)
+      if (!input.file) throw new ApiError("Elige el archivo del logo")
+      const prepared = await prepareImage(input.file)
+      const body = imageForm(prepared, input.draft.name || input.file.name, groupId ?? undefined)
+      return single
+        ? apiForm<Identity>(`/api/identities/${single.id}`, "PATCH", body)
         : apiForm<Identity>("/api/identities", "POST", body)
     },
     onSuccess: async (item) => {
-      setSelectedId(item.id)
-      setFile(null)
+      setCreating(null)
+      setSelected([item.id])
       setError(null)
       await queryClient.invalidateQueries({ queryKey: ["identities"] })
     },
@@ -78,103 +66,156 @@ export function IdentitiesPage() {
   const remove = useMutation({
     mutationFn: (id: string) => apiJson<void>(`/api/identities/${id}`, "DELETE"),
     onSuccess: async () => {
-      beginWordmark()
+      setSelected([])
+      setCreating("wordmark")
       await queryClient.invalidateQueries({ queryKey: ["identities"] })
     },
   })
+
+  const initial: IdentityDraft = single
+    ? { kind: single.kind, name: single.name, text: single.text, groupId: single.groupId ?? "none" }
+    : { kind: mode, name: "", text: "", groupId: openGroupId(filter) ?? "none" }
 
   return (
     <LibraryScreen
       title="Identidad"
       lede="Títulos cortos y logos de la iglesia. No entran en el sorteo: en el diseño se eligen y se quedan fijos."
+      actions={<LibraryTransfer scope="identities" />}
       list={
         <>
-          <div className="flex gap-2">
-            <Button variant="quiet" onClick={beginWordmark}>
+          <GroupShelf
+            kind="identities"
+            filter={filter}
+            onFilter={setFilter}
+            dissolveCopy="Los elementos pasan a Sin agrupar."
+          />
+          <div className="mt-6 flex gap-2">
+            <Button variant="quiet" onClick={() => begin("wordmark")}>
               Nuevo título
             </Button>
-            <Button variant="quiet" onClick={beginLogo}>
+            <Button variant="quiet" onClick={() => begin("logo")}>
               Nuevo logo
             </Button>
           </div>
-          {identities.data && identities.data.length === 0 ? (
+          <SelectionStrip
+            kind="identities"
+            ids={selected}
+            noun={{ one: "elemento", many: "elementos" }}
+            onDone={() => {
+              setSelected([])
+              void queryClient.invalidateQueries({ queryKey: ["identities"] })
+            }}
+          />
+          {identities.data && visible.length === 0 ? (
             <div className="mt-6">
-              <EmptyState title="Todavía no hay identidad">
-                Añade un título como «Emaus 2027» o el logo en PNG.
-              </EmptyState>
+              <EmptyState title="Este cajón está vacío">Añade un título como «Emaus 2027» o el logo en PNG.</EmptyState>
             </div>
           ) : null}
           <ul className="mt-4 flex flex-col gap-2">
-            {identities.data?.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => beginEdit(item)}
-                  className={`flex w-full items-center gap-3 border px-4 py-3 text-left ${item.id === selectedId ? "border-ink bg-white" : "border-line bg-white/40"}`}
-                >
-                  {item.kind === "logo" ? (
-                    <img src={`/api/identities/${item.id}/thumbnail`} alt="" className="h-10 w-10 object-contain" />
-                  ) : (
-                    <span className="font-[family-name:var(--font-sans)] text-sm">{item.text}</span>
-                  )}
-                  <span>
-                    <span className="block">{item.name}</span>
-                    <span className="text-sm text-bark/60">{item.kind === "logo" ? "Logo" : "Título"}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {visible.map((item) => {
+              const on = selected.includes(item.id)
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggle(item.id)}
+                    className={`flex w-full items-center gap-3 border px-4 py-3 text-left ${on ? "border-ink bg-white" : "border-line bg-white/40"}`}
+                  >
+                    {item.kind === "logo" ? (
+                      <img src={`/api/identities/${item.id}/thumbnail`} alt="" className="h-10 w-10 object-contain" />
+                    ) : (
+                      <span className="text-sm">{item.text}</span>
+                    )}
+                    <span>
+                      <span className="block">{item.name}</span>
+                      <span className="text-sm text-bark/60">{item.kind === "logo" ? "Logo" : "Título"}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         </>
       }
       form={
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            save.mutate()
-          }}
-        >
-          <h2 className="text-xl">{selected ? "Editar identidad" : kind === "logo" ? "Nuevo logo" : "Nuevo título"}</h2>
-          <Field label="Nombre en la biblioteca">
-            <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Emaus 2027" />
-          </Field>
-          {kind === "wordmark" ? (
-            <Field label="Título en el marcapáginas">
-              <TextInput
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder="Iglesia Adventista Emaus 2027"
-              />
-            </Field>
-          ) : (
-            <Field label={selected ? "Sustituir archivo" : "Archivo"}>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </Field>
-          )}
-          {selected?.kind === "logo" ? (
-            <img src={`/api/identities/${selected.id}/file`} alt="" className="max-h-40 object-contain" />
-          ) : null}
-          {error ? <Notice>{error}</Notice> : null}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={save.isPending}>
-              Guardar identidad
-            </Button>
-            {selected ? (
-              <ConfirmButton
-                label="Borrar"
-                question="¿Borrar este elemento de identidad?"
-                pending={remove.isPending}
-                onConfirm={() => remove.mutate(selected.id)}
-              />
-            ) : null}
-          </div>
-        </form>
+        chosen.length > 1 ? (
+          <p className="text-sm text-bark/70">Selecciona un solo elemento para editarlo.</p>
+        ) : (
+          <IdentityForm
+            key={single?.id ?? `new-${mode}-${openGroupId(filter) ?? "none"}`}
+            title={single ? "Editar identidad" : mode === "logo" ? "Nuevo logo" : "Nuevo título"}
+            initial={initial}
+            previewId={single?.kind === "logo" ? single.id : null}
+            error={error}
+            pending={save.isPending}
+            onSubmit={(draft, file) => save.mutate({ draft, file })}
+            onDelete={single ? () => remove.mutate(single.id) : null}
+            deleting={remove.isPending}
+          />
+        )
       }
     />
+  )
+}
+
+function IdentityForm({
+  title,
+  initial,
+  previewId,
+  error,
+  pending,
+  onSubmit,
+  onDelete,
+  deleting,
+}: {
+  title: string
+  initial: IdentityDraft
+  previewId: string | null
+  error: string | null
+  pending: boolean
+  onSubmit: (draft: IdentityDraft, file: File | null) => void
+  onDelete: (() => void) | null
+  deleting: boolean
+}) {
+  const [draft, setDraft] = useState(initial)
+  const [file, setFile] = useState<File | null>(null)
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit(draft, file)
+      }}
+    >
+      <h2 className="text-xl">{title}</h2>
+      <Field label="Nombre en la biblioteca">
+        <TextInput value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Emaus 2027" />
+      </Field>
+      {draft.kind === "wordmark" ? (
+        <Field label="Título en el marcapáginas">
+          <TextInput
+            value={draft.text}
+            onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+            placeholder="Iglesia Adventista Emaus 2027"
+          />
+        </Field>
+      ) : (
+        <Field label={previewId ? "Sustituir archivo" : "Archivo"}>
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+        </Field>
+      )}
+      {previewId ? <img src={`/api/identities/${previewId}/file`} alt="" className="max-h-40 object-contain" /> : null}
+      <GroupField kind="identities" value={draft.groupId} onChange={(groupId) => setDraft({ ...draft, groupId })} />
+      {error ? <Notice>{error}</Notice> : null}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={pending}>
+          Guardar identidad
+        </Button>
+        {onDelete ? (
+          <ConfirmButton label="Borrar" question="¿Borrar este elemento de identidad?" pending={deleting} onConfirm={onDelete} />
+        ) : null}
+      </div>
+    </form>
   )
 }

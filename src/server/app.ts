@@ -1,24 +1,26 @@
 import { eq, inArray } from "drizzle-orm"
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
 import type { ZodError } from "zod"
 import { emptySide, parseSideDocument } from "../domain/document"
 import type { BibleText, Design, Identity, Photo, PhotoGroup, Project, Quote } from "../domain/models"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { db, now } from "./db"
-import { exportBundle, importBundle, PortableError } from "./portable"
-import { bibleTexts, designs, identities, photoGroups, photos, projects, quotes } from "./schema"
+import { exportBundle, exportLibrary, importBundle, importLibrary, PortableError } from "./portable"
+import { bibleGroups, bibleTexts, designs, identities, identityGroups, photoGroups, photos, projects, quoteGroups, quotes } from "./schema"
 import {
   IMAGE_MIME,
   MAX_IMAGE_BYTES,
   bibleInputSchema,
   designCreateSchema,
   designPatchSchema,
+  identityLogoPatchSchema,
   identityWordmarkSchema,
+  itemBulkSchema,
+  libraryScopeSchema,
   photoBulkSchema,
   photoPatchSchema,
   projectInputSchema,
   quoteInputSchema,
-  renameSchema,
 } from "./validators"
 
 export function createApp(): Hono {
@@ -186,20 +188,37 @@ export function createApp(): Hono {
   app.post("/api/quotes", async (c) => {
     const parsed = quoteInputSchema.safeParse(await readJson(c))
     if (!parsed.success) return invalid(c, parsed.error)
+    if (parsed.data.groupId && !groupRow("quotes", parsed.data.groupId)) return missing(c, "Agrupación")
     const timestamp = now()
-    const row = { id: crypto.randomUUID(), ...parsed.data, createdAt: timestamp, updatedAt: timestamp }
+    const row = {
+      id: crypto.randomUUID(),
+      groupId: parsed.data.groupId ?? null,
+      body: parsed.data.body,
+      attribution: parsed.data.attribution,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
     db.insert(quotes).values(row).run()
     return c.json(toQuote(row), 201)
   })
+
+  app.post("/api/quotes/bulk", async (c) => bulkItems(c, "quotes"))
 
   app.patch("/api/quotes/:id", async (c) => {
     const current = db.select().from(quotes).where(eq(quotes.id, c.req.param("id"))).get()
     if (!current) return missing(c, "Cita")
     const parsed = quoteInputSchema.safeParse(await readJson(c))
     if (!parsed.success) return invalid(c, parsed.error)
+    if (parsed.data.groupId && !groupRow("quotes", parsed.data.groupId)) return missing(c, "Agrupación")
     const updatedAt = now()
-    db.update(quotes).set({ ...parsed.data, updatedAt }).where(eq(quotes.id, current.id)).run()
-    return c.json(toQuote({ ...current, ...parsed.data, updatedAt }))
+    const next = {
+      body: parsed.data.body,
+      attribution: parsed.data.attribution,
+      groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+      updatedAt,
+    }
+    db.update(quotes).set(next).where(eq(quotes.id, current.id)).run()
+    return c.json(toQuote({ ...current, ...next }))
   })
 
   app.delete("/api/quotes/:id", (c) => {
@@ -216,20 +235,45 @@ export function createApp(): Hono {
   app.post("/api/bible-texts", async (c) => {
     const parsed = bibleInputSchema.safeParse(await readJson(c))
     if (!parsed.success) return invalid(c, parsed.error)
+    if (parsed.data.groupId && !groupRow("bible", parsed.data.groupId)) return missing(c, "Agrupación")
     const timestamp = now()
-    const row = { id: crypto.randomUUID(), ...parsed.data, createdAt: timestamp, updatedAt: timestamp }
+    const row = {
+      id: crypto.randomUUID(),
+      groupId: parsed.data.groupId ?? null,
+      book: parsed.data.book,
+      chapter: parsed.data.chapter,
+      verseStart: parsed.data.verseStart,
+      verseEnd: parsed.data.verseEnd,
+      body: parsed.data.body,
+      translation: parsed.data.translation,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
     db.insert(bibleTexts).values(row).run()
     return c.json(toBible(row), 201)
   })
+
+  app.post("/api/bible-texts/bulk", async (c) => bulkItems(c, "bible"))
 
   app.patch("/api/bible-texts/:id", async (c) => {
     const current = db.select().from(bibleTexts).where(eq(bibleTexts.id, c.req.param("id"))).get()
     if (!current) return missing(c, "Texto bíblico")
     const parsed = bibleInputSchema.safeParse(await readJson(c))
     if (!parsed.success) return invalid(c, parsed.error)
+    if (parsed.data.groupId && !groupRow("bible", parsed.data.groupId)) return missing(c, "Agrupación")
     const updatedAt = now()
-    db.update(bibleTexts).set({ ...parsed.data, updatedAt }).where(eq(bibleTexts.id, current.id)).run()
-    return c.json(toBible({ ...current, ...parsed.data, updatedAt }))
+    const next = {
+      book: parsed.data.book,
+      chapter: parsed.data.chapter,
+      verseStart: parsed.data.verseStart,
+      verseEnd: parsed.data.verseEnd,
+      body: parsed.data.body,
+      translation: parsed.data.translation,
+      groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+      updatedAt,
+    }
+    db.update(bibleTexts).set(next).where(eq(bibleTexts.id, current.id)).run()
+    return c.json(toBible({ ...current, ...next }))
   })
 
   app.delete("/api/bible-texts/:id", (c) => {
@@ -353,10 +397,44 @@ export function createApp(): Hono {
     return c.body(null, 204)
   })
 
+  mountGroups(app, "/api/quote-groups", "quotes")
+  mountGroups(app, "/api/bible-groups", "bible")
+  mountGroups(app, "/api/identity-groups", "identities")
+
+  app.get("/api/library/export", (c) => {
+    const parsed = libraryScopeSchema.safeParse(c.req.query("scope"))
+    if (!parsed.success) return c.json({ error: "Elige qué biblioteca exportar" }, 400)
+    const file = exportLibrary(parsed.data)
+    return new Response(new Uint8Array(file.bytes), {
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${file.filename}"`,
+      },
+    })
+  })
+
+  app.post("/api/library/import", async (c) => {
+    const parsed = libraryScopeSchema.safeParse(c.req.query("scope"))
+    if (!parsed.success) return c.json({ error: "Elige qué biblioteca importar" }, 400)
+    const body = await c.req.parseBody()
+    const file = body.file
+    if (!(file instanceof File)) return c.json({ error: "Elige un archivo de biblioteca" }, 400)
+    try {
+      importLibrary(Buffer.from(await file.arrayBuffer()), parsed.data)
+      return c.body(null, 204)
+    } catch (error) {
+      const message = error instanceof PortableError ? error.message : "No se pudo importar la biblioteca"
+      return c.json({ error: message }, 400)
+    }
+  })
+
+  app.post("/api/identities/bulk", async (c) => bulkItems(c, "identities"))
+
   app.get("/api/identities", (c) => {
     const rows = db
       .select({
         id: identities.id,
+        groupId: identities.groupId,
         kind: identities.kind,
         name: identities.name,
         text: identities.text,
@@ -376,9 +454,11 @@ export function createApp(): Hono {
     if (contentType.includes("application/json")) {
       const parsed = identityWordmarkSchema.safeParse(await readJson(c))
       if (!parsed.success) return invalid(c, parsed.error)
+      if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
       const timestamp = now()
       const row = {
         id: crypto.randomUUID(),
+        groupId: parsed.data.groupId ?? null,
         kind: "wordmark" as const,
         name: parsed.data.name,
         text: parsed.data.text,
@@ -396,9 +476,11 @@ export function createApp(): Hono {
 
     const image = await readImageForm(c)
     if (image instanceof Response) return image
+    if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const timestamp = now()
     const row = {
       id: crypto.randomUUID(),
+      groupId: image.groupId,
       kind: "logo" as const,
       name: image.name,
       text: "",
@@ -423,25 +505,37 @@ export function createApp(): Hono {
       if (current.kind === "wordmark") {
         const parsed = identityWordmarkSchema.safeParse(body)
         if (!parsed.success) return invalid(c, parsed.error)
+        if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
         const updatedAt = now()
-        db.update(identities)
-          .set({ name: parsed.data.name, text: parsed.data.text, updatedAt })
-          .where(eq(identities.id, current.id))
-          .run()
-        return c.json(toIdentity({ ...current, name: parsed.data.name, text: parsed.data.text, updatedAt }))
+        const next = {
+          name: parsed.data.name,
+          text: parsed.data.text,
+          groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+          updatedAt,
+        }
+        db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+        return c.json(toIdentity({ ...current, ...next }))
       }
-      const parsed = renameSchema.safeParse(body)
+      const parsed = identityLogoPatchSchema.safeParse(body)
       if (!parsed.success) return invalid(c, parsed.error)
+      if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
       const updatedAt = now()
-      db.update(identities).set({ name: parsed.data.name, updatedAt }).where(eq(identities.id, current.id)).run()
-      return c.json(toIdentity({ ...current, name: parsed.data.name, updatedAt }))
+      const next = {
+        name: parsed.data.name,
+        groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+        updatedAt,
+      }
+      db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+      return c.json(toIdentity({ ...current, ...next }))
     }
     const image = await readImageForm(c)
     if (image instanceof Response) return image
+    if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const updatedAt = now()
     db.update(identities)
       .set({
         name: image.name,
+        groupId: image.groupId,
         mime: image.mime,
         widthPx: image.widthPx,
         heightPx: image.heightPx,
@@ -455,6 +549,7 @@ export function createApp(): Hono {
       toIdentity({
         ...current,
         name: image.name,
+        groupId: image.groupId,
         mime: image.mime,
         widthPx: image.widthPx,
         heightPx: image.heightPx,
@@ -505,9 +600,178 @@ function parseDocument(value: string) {
   }
 }
 
+type LibraryKind = "quotes" | "bible" | "identities"
+
+function mountGroups(app: Hono, base: string, kind: LibraryKind) {
+  app.get(base, (c) => c.json(listGroups(kind).map(toPhotoGroup).sort((a, b) => a.name.localeCompare(b.name, "es"))))
+
+  app.post(base, async (c) => {
+    const parsed = projectInputSchema.safeParse(await readJson(c))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const row = { id: crypto.randomUUID(), name: parsed.data.name, createdAt: now() }
+    insertGroup(kind, row)
+    return c.json(toPhotoGroup(row), 201)
+  })
+
+  app.patch(`${base}/:id`, async (c) => {
+    const current = groupRow(kind, c.req.param("id"))
+    if (!current) return missing(c, "Agrupación")
+    const parsed = projectInputSchema.safeParse(await readJson(c))
+    if (!parsed.success) return invalid(c, parsed.error)
+    renameGroup(kind, current.id, parsed.data.name)
+    return c.json(toPhotoGroup({ ...current, name: parsed.data.name }))
+  })
+
+  app.delete(`${base}/:id`, (c) => {
+    const current = groupRow(kind, c.req.param("id"))
+    if (!current) return missing(c, "Agrupación")
+    dissolveGroup(kind, current.id)
+    return c.body(null, 204)
+  })
+}
+
+async function bulkItems(c: Context, kind: LibraryKind): Promise<Response> {
+  const parsed = itemBulkSchema.safeParse(await readJson(c))
+  if (!parsed.success) return invalid(c, parsed.error)
+  const ids = parsed.data.ids
+  if (parsed.data.op === "delete") {
+    deleteItems(kind, ids)
+    return c.body(null, 204)
+  }
+  const groupId = parsed.data.groupId ?? null
+  if (groupId && !groupRow(kind, groupId)) return missing(c, "Agrupación")
+  moveItems(kind, ids, groupId)
+  return c.body(null, 204)
+}
+
+function listGroups(kind: LibraryKind): Array<{ id: string; name: string; createdAt: number }> {
+  switch (kind) {
+    case "quotes":
+      return db.select().from(quoteGroups).all()
+    case "bible":
+      return db.select().from(bibleGroups).all()
+    case "identities":
+      return db.select().from(identityGroups).all()
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function groupRow(kind: LibraryKind, id: string): { id: string; name: string; createdAt: number } | undefined {
+  switch (kind) {
+    case "quotes":
+      return db.select().from(quoteGroups).where(eq(quoteGroups.id, id)).get()
+    case "bible":
+      return db.select().from(bibleGroups).where(eq(bibleGroups.id, id)).get()
+    case "identities":
+      return db.select().from(identityGroups).where(eq(identityGroups.id, id)).get()
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function insertGroup(kind: LibraryKind, row: { id: string; name: string; createdAt: number }) {
+  switch (kind) {
+    case "quotes":
+      db.insert(quoteGroups).values(row).run()
+      return
+    case "bible":
+      db.insert(bibleGroups).values(row).run()
+      return
+    case "identities":
+      db.insert(identityGroups).values(row).run()
+      return
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function renameGroup(kind: LibraryKind, id: string, name: string) {
+  switch (kind) {
+    case "quotes":
+      db.update(quoteGroups).set({ name }).where(eq(quoteGroups.id, id)).run()
+      return
+    case "bible":
+      db.update(bibleGroups).set({ name }).where(eq(bibleGroups.id, id)).run()
+      return
+    case "identities":
+      db.update(identityGroups).set({ name }).where(eq(identityGroups.id, id)).run()
+      return
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function dissolveGroup(kind: LibraryKind, id: string) {
+  switch (kind) {
+    case "quotes":
+      db.update(quotes).set({ groupId: null }).where(eq(quotes.groupId, id)).run()
+      db.delete(quoteGroups).where(eq(quoteGroups.id, id)).run()
+      return
+    case "bible":
+      db.update(bibleTexts).set({ groupId: null }).where(eq(bibleTexts.groupId, id)).run()
+      db.delete(bibleGroups).where(eq(bibleGroups.id, id)).run()
+      return
+    case "identities":
+      db.update(identities).set({ groupId: null }).where(eq(identities.groupId, id)).run()
+      db.delete(identityGroups).where(eq(identityGroups.id, id)).run()
+      return
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function deleteItems(kind: LibraryKind, ids: string[]) {
+  switch (kind) {
+    case "quotes":
+      db.delete(quotes).where(inArray(quotes.id, ids)).run()
+      return
+    case "bible":
+      db.delete(bibleTexts).where(inArray(bibleTexts.id, ids)).run()
+      return
+    case "identities":
+      db.delete(identities).where(inArray(identities.id, ids)).run()
+      return
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function moveItems(kind: LibraryKind, ids: string[], groupId: string | null) {
+  const updatedAt = now()
+  switch (kind) {
+    case "quotes":
+      db.update(quotes).set({ groupId, updatedAt }).where(inArray(quotes.id, ids)).run()
+      return
+    case "bible":
+      db.update(bibleTexts).set({ groupId, updatedAt }).where(inArray(bibleTexts.id, ids)).run()
+      return
+    case "identities":
+      db.update(identities).set({ groupId, updatedAt }).where(inArray(identities.id, ids)).run()
+      return
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
 function toQuote(row: typeof quotes.$inferSelect): Quote {
   return {
     id: row.id,
+    groupId: row.groupId ?? null,
     body: row.body,
     attribution: row.attribution,
     createdAt: row.createdAt,
@@ -518,6 +782,7 @@ function toQuote(row: typeof quotes.$inferSelect): Quote {
 function toBible(row: typeof bibleTexts.$inferSelect): BibleText {
   return {
     id: row.id,
+    groupId: row.groupId ?? null,
     book: row.book,
     chapter: row.chapter,
     verseStart: row.verseStart,
@@ -551,6 +816,7 @@ function groupExists(id: string): boolean {
 
 function toIdentity(row: {
   id: string
+  groupId?: string | null
   kind: string
   name: string
   text: string
@@ -561,7 +827,7 @@ function toIdentity(row: {
   updatedAt: number
 }): Identity {
   const kind = row.kind === "logo" ? "logo" : "wordmark"
-  return { ...row, kind }
+  return { ...row, groupId: row.groupId ?? null, kind }
 }
 
 function touchProject(projectId: string) {

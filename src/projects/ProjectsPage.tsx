@@ -3,6 +3,7 @@ import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router"
 import { ApiError, apiForm, apiGet, apiJson } from "../api"
 import type { Project } from "../domain/models"
+import { LibraryTransfer } from "../library/LibraryTransfer"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
 
 export function ProjectsPage() {
@@ -71,6 +72,9 @@ export function ProjectsPage() {
           }}
         />
       </form>
+      <div className="mt-3">
+        <LibraryTransfer scope="all" />
+      </div>
       {error ? <div className="mt-3"><Notice>{error}</Notice></div> : null}
       <div className="mt-10">
         {projects.isLoading ? <p>Cargando proyectos…</p> : null}

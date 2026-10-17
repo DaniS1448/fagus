@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { apiGet, apiJson } from "../api"
 import { buildPdf } from "../domain/pdf"
-import { designPayload, type BibleText, type Design, type Identity, type Photo, type PhotoGroup, type Quote } from "../domain/models"
+import { designPayload, type BibleText, type Design, type Identity, type ItemGroup, type Photo, type PhotoGroup, type Quote } from "../domain/models"
 import { mixSeed } from "../domain/random"
 import { resolveDocument, type LibrarySnapshot } from "../domain/resolve"
 import { downloadBlob, slugify } from "../media"
@@ -27,8 +27,11 @@ export function EditorPage() {
   const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
   const groups = useQuery({ queryKey: ["photo-groups"], queryFn: () => apiGet<PhotoGroup[]>("/api/photo-groups") })
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: () => apiGet<Quote[]>("/api/quotes") })
+  const quoteGroups = useQuery({ queryKey: ["quote-groups"], queryFn: () => apiGet<ItemGroup[]>("/api/quote-groups") })
   const bible = useQuery({ queryKey: ["bible"], queryFn: () => apiGet<BibleText[]>("/api/bible-texts") })
+  const bibleGroups = useQuery({ queryKey: ["bible-groups"], queryFn: () => apiGet<ItemGroup[]>("/api/bible-groups") })
   const identities = useQuery({ queryKey: ["identities"], queryFn: () => apiGet<Identity[]>("/api/identities") })
+  const identityGroups = useQuery({ queryKey: ["identity-groups"], queryFn: () => apiGet<ItemGroup[]>("/api/identity-groups") })
   const images = useLibraryImages(photos.data, identities.data)
   const draft = useEditorStore((state) => state.draft)
   const side = useEditorStore((state) => state.side)
@@ -326,8 +329,11 @@ export function EditorPage() {
             photos: photos.data ?? [],
             groups: groups.data ?? [],
             quotes: quotes.data ?? [],
+            quoteGroups: quoteGroups.data ?? [],
             bibleTexts: bible.data ?? [],
+            bibleGroups: bibleGroups.data ?? [],
             identities: identities.data ?? [],
+            identityGroups: identityGroups.data ?? [],
           }}
           onCreatePhoto={() => setDialog("photo")}
           onCreateQuote={() => setDialog("quote")}

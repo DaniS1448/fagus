@@ -24,6 +24,19 @@ export function ProjectPage() {
   const [heightMm, setHeightMm] = useState(DEFAULT_HEIGHT_MM)
   const [sides, setSides] = useState<"single" | "double">("single")
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [projectName, setProjectName] = useState("")
+
+  const rename = useMutation({
+    mutationFn: () => apiJson<Project>(`/api/projects/${projectId}`, "PATCH", { name: projectName }),
+    onSuccess: async () => {
+      setEditing(false)
+      setError(null)
+      await queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      await queryClient.invalidateQueries({ queryKey: ["projects"] })
+    },
+    onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo renombrar"),
+  })
 
   const create = useMutation({
     mutationFn: () =>
@@ -44,7 +57,38 @@ export function ProjectPage() {
         </Link>
       </p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-3xl">{project.data?.name ?? "Proyecto"}</h1>
+        {editing ? (
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              rename.mutate()
+            }}
+          >
+            <Field label="Nombre del proyecto">
+              <TextInput value={projectName} onChange={(event) => setProjectName(event.target.value)} />
+            </Field>
+            <Button type="submit" disabled={rename.isPending || projectName.trim().length === 0}>
+              Guardar nombre
+            </Button>
+            <Button variant="quiet" onClick={() => setEditing(false)}>
+              Cancelar
+            </Button>
+          </form>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl">{project.data?.name ?? "Proyecto"}</h1>
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setProjectName(project.data?.name ?? "")
+                setEditing(true)
+              }}
+            >
+              Renombrar
+            </Button>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           <ButtonLink to={`/projects/${projectId}/print`}>Componer pliego</ButtonLink>
           <Button

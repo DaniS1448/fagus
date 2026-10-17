@@ -7,8 +7,9 @@ export type IdMaps = {
   photos: ReadonlyMap<string, string>
 }
 
-type QuoteRef = { id: string }
-type BibleRef = { id: string }
+type QuoteRef = { id: string; groupId?: string | null }
+type BibleRef = { id: string; groupId?: string | null }
+type IdentityRef = { id: string; groupId?: string | null }
 type PhotoRef = { id: string; groupId: string | null }
 
 export type ExportSelection = {
@@ -17,11 +18,50 @@ export type ExportSelection = {
   identityIds: string[]
   photoIds: string[]
   groupIds: string[]
+  quoteGroupIds: string[]
+  bibleGroupIds: string[]
+  identityGroupIds: string[]
+}
+
+export type LibraryScope = "all" | "quotes" | "bible" | "identities" | "photos"
+
+export function includedLibraries(scope: LibraryScope): {
+  quotes: boolean
+  bible: boolean
+  identities: boolean
+  photos: boolean
+} {
+  switch (scope) {
+    case "all":
+      return { quotes: true, bible: true, identities: true, photos: true }
+    case "quotes":
+      return { quotes: true, bible: false, identities: false, photos: false }
+    case "bible":
+      return { quotes: false, bible: true, identities: false, photos: false }
+    case "identities":
+      return { quotes: false, bible: false, identities: true, photos: false }
+    case "photos":
+      return { quotes: false, bible: false, identities: false, photos: true }
+    default: {
+      const unknown: never = scope
+      return unknown
+    }
+  }
+}
+
+export function remapGroupId(groupId: string | null, groups: ReadonlyMap<string, string>): string | null {
+  if (groupId == null) return null
+  return groups.get(groupId) ?? null
 }
 
 export function selectionForDesigns(
   sides: readonly SideDocument[],
-  libraries: { quotes: readonly QuoteRef[]; bibleTexts: readonly BibleRef[]; photos: readonly PhotoRef[] },
+  libraries: {
+    quotes: readonly QuoteRef[]
+    bibleTexts: readonly BibleRef[]
+    identities?: readonly IdentityRef[]
+    photos: readonly PhotoRef[]
+  },
 ): ExportSelection {
   const quoteIds = new Set<string>()
   const bibleTextIds = new Set<string>()
@@ -65,19 +105,30 @@ export function selectionForDesigns(
     }
   }
 
-  const selectedPhotos = libraries.photos.filter((photo) => photoIds.has(photo.id))
-  const groupIds = new Set<string>()
-  for (const photo of selectedPhotos) {
-    if (photo.groupId) groupIds.add(photo.groupId)
-  }
+  const chosenQuoteIds = allQuotes ? libraries.quotes.map((item) => item.id) : [...quoteIds]
+  const chosenBibleIds = allBible ? libraries.bibleTexts.map((item) => item.id) : [...bibleTextIds]
+  const chosenIdentityIds = [...identityIds]
+  const chosenPhotoIds = [...photoIds]
 
   return {
-    quoteIds: allQuotes ? libraries.quotes.map((item) => item.id) : [...quoteIds],
-    bibleTextIds: allBible ? libraries.bibleTexts.map((item) => item.id) : [...bibleTextIds],
-    identityIds: [...identityIds],
-    photoIds: [...photoIds],
-    groupIds: [...groupIds],
+    quoteIds: chosenQuoteIds,
+    bibleTextIds: chosenBibleIds,
+    identityIds: chosenIdentityIds,
+    photoIds: chosenPhotoIds,
+    groupIds: groupsUsed(chosenPhotoIds, libraries.photos),
+    quoteGroupIds: groupsUsed(chosenQuoteIds, libraries.quotes),
+    bibleGroupIds: groupsUsed(chosenBibleIds, libraries.bibleTexts),
+    identityGroupIds: groupsUsed(chosenIdentityIds, libraries.identities ?? []),
   }
+}
+
+function groupsUsed(ids: readonly string[], items: readonly { id: string; groupId?: string | null }[]): string[] {
+  const wanted = new Set(ids)
+  const groups = new Set<string>()
+  for (const item of items) {
+    if (wanted.has(item.id) && item.groupId) groups.add(item.groupId)
+  }
+  return [...groups]
 }
 
 export function remapSide(side: SideDocument, ids: IdMaps): SideDocument {

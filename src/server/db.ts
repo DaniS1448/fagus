@@ -51,12 +51,24 @@ sqlite.exec(`
     created_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS quote_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS quotes (
     id TEXT PRIMARY KEY,
     body TEXT NOT NULL,
     attribution TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS bible_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS bible_texts (
@@ -69,6 +81,12 @@ sqlite.exec(`
     translation TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS identity_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS identities (
@@ -90,6 +108,21 @@ ensureColumn(
   "photos",
   "group_id",
   "ALTER TABLE photos ADD COLUMN group_id TEXT REFERENCES photo_groups(id) ON DELETE SET NULL",
+)
+ensureColumn(
+  "quotes",
+  "group_id",
+  "ALTER TABLE quotes ADD COLUMN group_id TEXT REFERENCES quote_groups(id) ON DELETE SET NULL",
+)
+ensureColumn(
+  "bible_texts",
+  "group_id",
+  "ALTER TABLE bible_texts ADD COLUMN group_id TEXT REFERENCES bible_groups(id) ON DELETE SET NULL",
+)
+ensureColumn(
+  "identities",
+  "group_id",
+  "ALTER TABLE identities ADD COLUMN group_id TEXT REFERENCES identity_groups(id) ON DELETE SET NULL",
 )
 
 export const db = drizzle(sqlite, { schema })

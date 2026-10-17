@@ -24,9 +24,12 @@ export const designPatchSchema = z.object({
   seed: z.number().int().min(0).max(1_000_000_000).optional(),
 })
 
+const groupIdSchema = z.string().min(1).nullable().optional()
+
 export const quoteInputSchema = z.object({
   body: z.string().trim().min(1, "Escribe la cita").max(4000),
   attribution: z.string().trim().max(160).default(""),
+  groupId: groupIdSchema,
 })
 
 export const bibleInputSchema = z
@@ -37,6 +40,7 @@ export const bibleInputSchema = z
     verseEnd: z.number().int().positive().nullable().default(null),
     body: z.string().trim().min(1, "Escribe el texto").max(4000),
     translation: z.string().trim().max(80).default(""),
+    groupId: groupIdSchema,
   })
   .refine((value) => value.verseEnd == null || value.verseEnd >= value.verseStart, {
     message: "El versículo final tiene que ser el mismo o posterior al inicial",
@@ -46,6 +50,12 @@ export const identityWordmarkSchema = z.object({
   kind: z.literal("wordmark"),
   name: nameSchema,
   text: z.string().trim().min(1, "Escribe el título").max(80),
+  groupId: groupIdSchema,
+})
+
+export const identityLogoPatchSchema = z.object({
+  name: nameSchema,
+  groupId: groupIdSchema,
 })
 
 export const renameSchema = z.object({
@@ -60,6 +70,20 @@ export const photoPatchSchema = z
   .refine((value) => value.name !== undefined || value.groupId !== undefined, {
     message: "No hay cambios",
   })
+
+export const itemBulkSchema = z
+  .object({
+    ids: z.array(z.string().min(1)).min(1, "Elige al menos uno").max(200),
+    op: z.enum(["delete", "move"]),
+    groupId: z.string().min(1).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.op === "move" && value.groupId === undefined) {
+      context.addIssue({ code: "custom", message: "Elige una agrupación" })
+    }
+  })
+
+export const libraryScopeSchema = z.enum(["all", "quotes", "bible", "identities", "photos"])
 
 export const photoBulkSchema = z
   .object({

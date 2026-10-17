@@ -1,14 +1,17 @@
 import { useState, type ReactNode } from "react"
 import type { BookmarkElement } from "../domain/document"
-import type { BibleText, Identity, Photo, PhotoGroup, Quote } from "../domain/models"
+import type { BibleText, Identity, ItemGroup, Photo, PhotoGroup, Quote } from "../domain/models"
 import { activeDocument, useEditorStore } from "./store"
 
 type Libraries = {
   photos: Photo[]
   groups: PhotoGroup[]
   quotes: Quote[]
+  quoteGroups: ItemGroup[]
   bibleTexts: BibleText[]
+  bibleGroups: ItemGroup[]
   identities: Identity[]
+  identityGroups: ItemGroup[]
 }
 
 export function ToolRail({
@@ -53,7 +56,7 @@ export function ToolRail({
           ))}
         </ol>
       </Section>
-      <Section title="Fotos" action="Subir" onAction={onCreatePhoto} defaultOpen={has("photo")}>
+      <Section title="Fotos" action="Subir" onAction={onCreatePhoto} defaultOpen>
         {libraries.photos.length === 0 ? <Hint>Sube una foto para encajarla en el marco.</Hint> : null}
         <PhotoDrawers
           photos={libraries.photos}
@@ -84,38 +87,35 @@ export function ToolRail({
           label="Caja dinámica"
           onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
         />
-        {libraries.quotes.map((quote) => (
-          <ItemButton
-            key={quote.id}
-            label={quote.body}
-            onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "fixed", quote.id), "front")}
-          />
-        ))}
+        <GroupedButtons
+          items={libraries.quotes}
+          groups={libraries.quoteGroups}
+          label={(quote) => quote.body}
+          onAdd={(quote) => addElement(quoteElement(draft.widthMm, draft.heightMm, "fixed", quote.id), "front")}
+        />
       </Section>
       <Section title="Textos bíblicos" action="Nuevo" onAction={onCreateBible} defaultOpen={has("bible")}>
         <AddPool
           label="Caja dinámica"
           onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
         />
-        {libraries.bibleTexts.map((text) => (
-          <ItemButton
-            key={text.id}
-            label={`${text.book} ${text.chapter}:${text.verseStart}`}
-            onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "fixed", text.id), "front")}
-          />
-        ))}
+        <GroupedButtons
+          items={libraries.bibleTexts}
+          groups={libraries.bibleGroups}
+          label={(text) => `${text.book} ${text.chapter}:${text.verseStart}`}
+          onAdd={(text) => addElement(bibleElement(draft.widthMm, draft.heightMm, "fixed", text.id), "front")}
+        />
       </Section>
       <Section title="Identidad" action="Título" onAction={onCreateWordmark} defaultOpen={has("identity")}>
         <button type="button" className="text-left text-sm text-ink underline" onClick={onCreateLogo}>
           Subir logo
         </button>
-        {libraries.identities.map((item) => (
-          <ItemButton
-            key={item.id}
-            label={item.kind === "logo" ? item.name : item.text}
-            onClick={() => addElement(identityElement(item, draft.widthMm, draft.heightMm), "front")}
-          />
-        ))}
+        <GroupedButtons
+          items={libraries.identities}
+          groups={libraries.identityGroups}
+          label={(item) => (item.kind === "logo" ? item.name : item.text)}
+          onAdd={(item) => addElement(identityElement(item, draft.widthMm, draft.heightMm), "front")}
+        />
       </Section>
     </div>
   )
@@ -291,6 +291,42 @@ function PhotoDrawers({
           <ThumbGrid photos={loose} onAdd={onAdd} />
         </div>
       ) : null}
+    </>
+  )
+}
+
+function GroupedButtons<T extends { id: string; groupId: string | null }>({
+  items,
+  groups,
+  label,
+  onAdd,
+}: {
+  items: T[]
+  groups: ItemGroup[]
+  label: (item: T) => string
+  onAdd: (item: T) => void
+}) {
+  const named = groups
+    .map((group) => ({ group, items: items.filter((item) => item.groupId === group.id) }))
+    .filter((entry) => entry.items.length > 0)
+  const loose = items.filter((item) => item.groupId == null)
+  const showLooseLabel = named.length > 0 && loose.length > 0
+  return (
+    <>
+      {named.map((entry) => (
+        <div key={entry.group.id} className="mb-2">
+          <p className="px-1 pb-1 text-sm text-bark/60">{entry.group.name}</p>
+          {entry.items.map((item) => (
+            <ItemButton key={item.id} label={label(item)} onClick={() => onAdd(item)} />
+          ))}
+        </div>
+      ))}
+      {loose.map((item) => (
+        <div key={item.id}>
+          {showLooseLabel && item.id === loose[0]?.id ? <p className="px-1 pb-1 text-sm text-bark/60">Sin agrupar</p> : null}
+          <ItemButton label={label(item)} onClick={() => onAdd(item)} />
+        </div>
+      ))}
     </>
   )
 }

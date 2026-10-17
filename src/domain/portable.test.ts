@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { emptySide, textStyle, type SideDocument } from "./document"
-import { remapSide, selectionForDesigns } from "./portable"
+import { includedLibraries, remapGroupId, remapSide, selectionForDesigns } from "./portable"
 
 function quoteSide(mode: "fixed" | "pool", quoteId: string | null, poolIds: string[]): SideDocument {
   return {
@@ -25,8 +25,12 @@ function quoteSide(mode: "fixed" | "pool", quoteId: string | null, poolIds: stri
 }
 
 const libraries = {
-  quotes: [{ id: "q-a" }, { id: "q-b" }],
-  bibleTexts: [{ id: "b1" }, { id: "b2" }],
+  quotes: [
+    { id: "q-a", groupId: "qg" },
+    { id: "q-b", groupId: null },
+  ],
+  bibleTexts: [{ id: "b1", groupId: "bg" }, { id: "b2", groupId: null }],
+  identities: [{ id: "i1", groupId: "ig" }],
   photos: [
     { id: "photo-1", groupId: "group-1" },
     { id: "photo-2", groupId: null },
@@ -37,6 +41,7 @@ describe("selectionForDesigns", () => {
   it("takes the whole quote library when a dynamic box is open", () => {
     const selection = selectionForDesigns([quoteSide("pool", null, [])], libraries)
     expect(selection.quoteIds).toEqual(["q-a", "q-b"])
+    expect(selection.quoteGroupIds).toEqual(["qg"])
   })
 
   it("takes only the marked quotes and the photo's group", () => {
@@ -64,6 +69,26 @@ describe("selectionForDesigns", () => {
     expect(selection.quoteIds).toEqual(["q-b"])
     expect(selection.photoIds).toEqual(["photo-1"])
     expect(selection.groupIds).toEqual(["group-1"])
+    expect(selection.quoteGroupIds).toEqual([])
+  })
+})
+
+describe("library bundles", () => {
+  it("includes only the asked library", () => {
+    expect(includedLibraries("quotes")).toEqual({
+      quotes: true,
+      bible: false,
+      identities: false,
+      photos: false,
+    })
+    expect(includedLibraries("all").photos).toBe(true)
+  })
+
+  it("rewrites a group id and drops one that did not travel", () => {
+    const groups = new Map([["old", "new"]])
+    expect(remapGroupId("old", groups)).toBe("new")
+    expect(remapGroupId("missing", groups)).toBeNull()
+    expect(remapGroupId(null, groups)).toBeNull()
   })
 })
 

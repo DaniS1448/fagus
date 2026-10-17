@@ -37,8 +37,11 @@ export type PhotoGroup = {
   createdAt: number
 }
 
+export type ItemGroup = PhotoGroup
+
 export type Quote = {
   id: string
+  groupId: string | null
   body: string
   attribution: string
   createdAt: number
@@ -47,6 +50,7 @@ export type Quote = {
 
 export type BibleText = {
   id: string
+  groupId: string | null
   book: string
   chapter: number
   verseStart: number
@@ -59,6 +63,7 @@ export type BibleText = {
 
 export type Identity = {
   id: string
+  groupId: string | null
   kind: "wordmark" | "logo"
   name: string
   text: string

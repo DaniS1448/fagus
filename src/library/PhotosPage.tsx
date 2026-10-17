@@ -3,6 +3,7 @@ import { useRef, useState } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { Photo, PhotoGroup } from "../domain/models"
 import { Button, ConfirmButton, EmptyState, Field, Notice, Select, TextInput } from "../ui/controls"
+import { LibraryTransfer } from "./LibraryTransfer"
 import { uploadPhotos } from "./uploadPhotos"
 
 type Filter = "all" | "none" | string
@@ -101,7 +102,10 @@ export function PhotosPage() {
   return (
     <div className="grid min-h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="px-6 py-8 lg:px-10">
-        <h1 className="text-3xl">Fotos</h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-3xl">Fotos</h1>
+          <LibraryTransfer scope="photos" />
+        </div>
         <p className="mt-2 max-w-xl text-bark/70">
           Cada foto entra en un cajón o se queda sin agrupar. En el diseño se encaja dentro de un marco.
         </p>

@@ -41,16 +41,30 @@ export const photos = sqliteTable("photos", {
   createdAt: integer("created_at").notNull(),
 })
 
+export const quoteGroups = sqliteTable("quote_groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+})
+
 export const quotes = sqliteTable("quotes", {
   id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => quoteGroups.id, { onDelete: "set null" }),
   body: text("body").notNull(),
   attribution: text("attribution").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 })
 
+export const bibleGroups = sqliteTable("bible_groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+})
+
 export const bibleTexts = sqliteTable("bible_texts", {
   id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => bibleGroups.id, { onDelete: "set null" }),
   book: text("book").notNull(),
   chapter: integer("chapter").notNull(),
   verseStart: integer("verse_start").notNull(),
@@ -61,8 +75,15 @@ export const bibleTexts = sqliteTable("bible_texts", {
   updatedAt: integer("updated_at").notNull(),
 })
 
+export const identityGroups = sqliteTable("identity_groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+})
+
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => identityGroups.id, { onDelete: "set null" }),
   kind: text("kind").notNull(),
   name: text("name").notNull(),
   text: text("text").notNull(),
