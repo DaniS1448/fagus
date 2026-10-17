@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { apiGet, apiJson } from "../api"
 import type { BibleText, Design, Identity, Photo, Project, Quote } from "../domain/models"
@@ -55,6 +55,8 @@ export function PrintPage() {
   const [notes, setNotes] = useState<string[]>([])
   const [status, setStatus] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const [columnWidth, setColumnWidth] = useState(640)
 
   useEffect(() => {
     if (!designs.data) return
@@ -193,7 +195,14 @@ export function PrintPage() {
     await designs.refetch()
   }
 
-  const display = 2.2
+  useEffect(() => {
+    const node = previewRef.current
+    if (!node) return
+    const observer = new ResizeObserver(() => setColumnWidth(node.clientWidth))
+    observer.observe(node)
+    setColumnWidth(node.clientWidth)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <div className="px-6 py-8 lg:px-10">
@@ -204,7 +213,7 @@ export function PrintPage() {
       </p>
       <h1 className="mt-2 text-3xl">Pliego</h1>
       <p className="mt-2 max-w-2xl text-bark/70">
-        Las copias del mismo diseño dinámico usan la semilla más su número, así que cada pieza puede salir distinta. El reverso no se espeja: se mueven las casillas según el borde de volteo.
+        Cada copia de un texto dinámico puede salir distinta. El reverso se coloca detrás de su frente.
       </p>
       <div className="mt-8 grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="flex flex-col gap-4">
@@ -264,12 +273,14 @@ export function PrintPage() {
             <input type="checkbox" checked={duplex} onChange={(event) => setDuplex(event.target.checked)} />
             Incluir reverso
           </label>
-          <Field label="Volteo">
-            <Select value={flip} onChange={(event) => setFlip(event.target.value === "short" ? "short" : "long")}>
-              <option value="long">Borde largo</option>
-              <option value="short">Borde corto</option>
-            </Select>
-          </Field>
+          {duplex ? (
+            <Field label="Volteo">
+              <Select value={flip} onChange={(event) => setFlip(event.target.value === "short" ? "short" : "long")}>
+                <option value="long">Borde largo</option>
+                <option value="short">Borde corto</option>
+              </Select>
+            </Field>
+          ) : null}
           <Button onClick={() => void downloadPdf()}>Descargar PDF del pliego</Button>
           {status ? <p className="text-sm">{status}</p> : null}
           {error ? <Notice>{error}</Notice> : null}
@@ -277,11 +288,18 @@ export function PrintPage() {
             <Notice key={note}>{note}</Notice>
           ))}
         </div>
-        <div className="flex flex-col gap-8 overflow-auto">
+        <div ref={previewRef} className="flex min-w-0 flex-col gap-8 overflow-auto">
+          <div className="hidden xl:block">
+            <Button onClick={() => void downloadPdf()}>Descargar PDF del pliego</Button>
+          </div>
           {previews.length === 0 && !status ? (
-            <p className="text-sm text-bark/70">Indica cuántas copias quieres de cada diseño.</p>
+            <p className="text-sm text-bark/70">
+              {jobs.some((job) => job.copies > 0) ? "Preparando la vista…" : "Indica cuántas copias quieres de cada diseño."}
+            </p>
           ) : null}
-          {previews.map((sheet) => (
+          {previews.map((sheet) => {
+            const display = Math.max(0.4, columnWidth / sheet.widthMm)
+            return (
             <figure key={sheet.key}>
               <figcaption className="mb-2 text-sm">{sheet.label}</figcaption>
               <div
@@ -317,7 +335,8 @@ export function PrintPage() {
                 </svg>
               </div>
             </figure>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

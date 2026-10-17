@@ -3,7 +3,7 @@ import { useState } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { BibleText } from "../domain/models"
 import { formatReference } from "../domain/reference"
-import { Button, EmptyState, Field, Notice, TextArea, TextInput } from "../ui/controls"
+import { Button, ConfirmButton, EmptyState, Field, Notice, TextArea, TextInput } from "../ui/controls"
 import { LibraryScreen } from "./LibraryScreen"
 
 type BibleForm = {
@@ -148,14 +148,12 @@ export function BiblePage() {
               Guardar texto
             </Button>
             {selected ? (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm("¿Borrar este texto bíblico?")) remove.mutate(selected.id)
-                }}
-              >
-                Borrar
-              </Button>
+              <ConfirmButton
+                label="Borrar"
+                question="¿Borrar este texto bíblico?"
+                pending={remove.isPending}
+                onConfirm={() => remove.mutate(selected.id)}
+              />
             ) : null}
           </div>
         </form>

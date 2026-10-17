@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { apiGet, apiJson } from "../api"
 import { buildPdf } from "../domain/pdf"
-import { designPayload, type BibleText, type Design, type Identity, type Photo, type Quote } from "../domain/models"
+import { designPayload, type BibleText, type Design, type Identity, type Photo, type PhotoGroup, type Quote } from "../domain/models"
 import { mixSeed } from "../domain/random"
 import { resolveDocument, type LibrarySnapshot } from "../domain/resolve"
 import { downloadBlob, slugify } from "../media"
@@ -25,6 +25,7 @@ export function EditorPage() {
     queryFn: () => apiGet<Design>(`/api/designs/${designId}`),
   })
   const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
+  const groups = useQuery({ queryKey: ["photo-groups"], queryFn: () => apiGet<PhotoGroup[]>("/api/photo-groups") })
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: () => apiGet<Quote[]>("/api/quotes") })
   const bible = useQuery({ queryKey: ["bible"], queryFn: () => apiGet<BibleText[]>("/api/bible-texts") })
   const identities = useQuery({ queryKey: ["identities"], queryFn: () => apiGet<Identity[]>("/api/identities") })
@@ -53,9 +54,11 @@ export function EditorPage() {
   const [exportError, setExportError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [dialog, setDialog] = useState<DialogKind | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement>(null)
   const savedJson = useRef("")
   const hydratedId = useRef<string | null>(null)
+  const fittedId = useRef<string | null>(null)
 
   useEffect(() => {
     const design = designQuery.data
@@ -153,6 +156,26 @@ export function EditorPage() {
 
   const selectedResolved = resolved?.elements.find((element) => element.id === selectedId) ?? null
 
+  useEffect(() => {
+    const node = viewportRef.current
+    const current = useEditorStore.getState().draft
+    if (!node || !current || fittedId.current === current.id) return
+    const apply = () => {
+      const box = node.getBoundingClientRect()
+      if (box.width < 40 || box.height < 40) return
+      const next = Math.min((box.width - 72) / current.widthMm, (box.height - 72) / current.heightMm)
+      setPxPerMm(Math.max(0.6, next))
+      fittedId.current = current.id
+    }
+    apply()
+    const observer = new ResizeObserver(() => {
+      if (fittedId.current === current.id) return
+      apply()
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [draft?.id])
+
   function fit() {
     const box = viewportRef.current?.getBoundingClientRect()
     if (!box || !draft) return
@@ -204,86 +227,104 @@ export function EditorPage() {
     error: "No se pudo guardar",
   }[status]
 
+  const zoom = Math.round((pxPerMm / SCREEN_PX_PER_MM) * 100)
+
   return (
     <div className="flex h-full min-h-screen flex-col bg-foam text-bark">
-      <header className="flex flex-wrap items-center gap-3 bg-bark px-4 py-3 text-mat">
-        <Link to={`/projects/${projectId}`} className="text-sm text-paper hover:underline">
-          Volver al proyecto
-        </Link>
-        <input
-          value={draft.name}
-          onFocus={beginGesture}
-          onBlur={endGesture}
-          onChange={(event) => live((design) => ({ ...design, name: event.target.value }))}
-          className="w-48 border border-white/10 bg-bark-soft px-2 py-1 text-paper"
-        />
-        <label className="flex items-center gap-2 text-sm">
-          Ancho
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-bark px-4 py-3 text-mat">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to={`/projects/${projectId}`} className="text-sm text-paper hover:underline">
+            Volver al proyecto
+          </Link>
           <input
-            className="w-20 bg-bark-soft px-2 py-1 text-paper"
-            type="number"
-            min={15}
-            step={0.1}
-            value={draft.widthMm}
-            onChange={(event) => {
-              const widthMm = Number(event.target.value)
-              if (widthMm >= 15) commit((design) => ({ ...design, widthMm }))
-            }}
+            aria-label="Nombre del diseño"
+            value={draft.name}
+            onFocus={beginGesture}
+            onBlur={endGesture}
+            onChange={(event) => live((design) => ({ ...design, name: event.target.value }))}
+            className="w-48 border border-white/10 bg-bark-soft px-2 py-1 text-paper"
           />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          Alto
-          <input
-            className="w-20 bg-bark-soft px-2 py-1 text-paper"
-            type="number"
-            min={15}
-            step={0.1}
-            value={draft.heightMm}
-            onChange={(event) => {
-              const heightMm = Number(event.target.value)
-              if (heightMm >= 15) commit((design) => ({ ...design, heightMm }))
+          <label className="flex items-center gap-2 text-sm">
+            Ancho
+            <input
+              className="w-20 bg-bark-soft px-2 py-1 text-paper"
+              type="number"
+              min={15}
+              step={0.1}
+              value={draft.widthMm}
+              onChange={(event) => {
+                const widthMm = Number(event.target.value)
+                if (widthMm >= 15) commit((design) => ({ ...design, widthMm }))
+              }}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            Alto
+            <input
+              className="w-20 bg-bark-soft px-2 py-1 text-paper"
+              type="number"
+              min={15}
+              step={0.1}
+              value={draft.heightMm}
+              onChange={(event) => {
+                const heightMm = Number(event.target.value)
+                if (heightMm >= 15) commit((design) => ({ ...design, heightMm }))
+              }}
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="paper"
+            onClick={() => {
+              const sides = draft.sides === "double" ? "single" : "double"
+              commit((design) => ({ ...design, sides }))
+              if (sides === "single") setSide("front")
             }}
-          />
-        </label>
-        <Button
-          variant="paper"
-          onClick={() => {
-            const sides = draft.sides === "double" ? "single" : "double"
-            commit((design) => ({ ...design, sides }))
-            if (sides === "single") setSide("front")
-          }}
-        >
-          {draft.sides === "double" ? "Dos caras" : "Una cara"}
-        </Button>
-        <div className="flex">
-          <Button variant={side === "front" ? "solid" : "quiet"} onClick={() => setSide("front")}>
-            Frente
+          >
+            {draft.sides === "double" ? "Dos caras" : "Una cara"}
           </Button>
-          <Button variant={side === "back" ? "solid" : "quiet"} disabled={draft.sides === "single"} onClick={() => setSide("back")}>
-            Reverso
+          <div className="flex">
+            <Button variant={side === "front" ? "solid" : "paper"} onClick={() => setSide("front")}>
+              Frente
+            </Button>
+            <Button variant={side === "back" ? "solid" : "paper"} disabled={draft.sides === "single"} onClick={() => setSide("back")}>
+              Reverso
+            </Button>
+          </div>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span className={`text-sm ${status === "error" ? "text-mark" : "text-mat/70"}`}>{statusLabel}</span>
+          <div className="relative">
+            <Button variant="paper" aria-expanded={exportOpen} onClick={() => setExportOpen((value) => !value)}>
+              Exportar
+            </Button>
+            {exportOpen ? (
+              <div className="absolute right-0 z-20 mt-1 flex min-w-44 flex-col bg-bark-soft p-1">
+                <Button variant="paper" disabled={busy || resolved.broken} onClick={() => void exportSide("front", "png")}>
+                  Foto del frente
+                </Button>
+                <Button
+                  variant="paper"
+                  disabled={busy || resolved.broken || draft.sides === "single"}
+                  onClick={() => void exportSide("back", "png")}
+                >
+                  Foto del reverso
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          <Button variant="solid" disabled={busy || resolved.broken} onClick={() => void exportSide("front", "pdf")}>
+            PDF del marcapáginas
           </Button>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          Semilla
-          <input
-            className="w-24 bg-bark-soft px-2 py-1 text-paper"
-            type="number"
-            value={draft.seed}
-            onChange={(event) => commit((design) => ({ ...design, seed: Number(event.target.value) || 0 }))}
-          />
-        </label>
-        <Button
-          variant="paper"
-          onClick={() => commit((design) => ({ ...design, seed: Math.floor(Math.random() * 1_000_000) + 1 }))}
-        >
-          Barajar
-        </Button>
-        <span className="text-sm text-mat/70">{statusLabel}</span>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_320px]">
         <ToolRail
+          key={side}
           libraries={{
             photos: photos.data ?? [],
+            groups: groups.data ?? [],
             quotes: quotes.data ?? [],
             bibleTexts: bible.data ?? [],
             identities: identities.data ?? [],
@@ -299,14 +340,15 @@ export function EditorPage() {
             <Button variant="quiet" onClick={() => setPxPerMm((value) => value / 1.1)} aria-label="Alejar">
               −
             </Button>
+            <span className="w-12 text-center text-sm">{zoom}%</span>
+            <Button variant="quiet" onClick={() => setPxPerMm((value) => value * 1.1)} aria-label="Acercar">
+              +
+            </Button>
             <Button variant="quiet" onClick={fit}>
               Ajustar
             </Button>
             <Button variant="quiet" onClick={() => setPxPerMm(SCREEN_PX_PER_MM)}>
               100%
-            </Button>
-            <Button variant="quiet" onClick={() => setPxPerMm((value) => value * 1.1)} aria-label="Acercar">
-              +
             </Button>
             <Button variant="quiet" onClick={toggleGuides}>
               {guides ? "Ocultar guías" : "Mostrar guías"}
@@ -317,21 +359,22 @@ export function EditorPage() {
             <Button variant="quiet" disabled={future.length === 0} onClick={redo}>
               Rehacer
             </Button>
-            <span className="ml-auto flex flex-wrap gap-2">
-              <Button variant="paper" disabled={busy || resolved.broken} onClick={() => void exportSide("front", "png")}>
-                Foto del frente
-              </Button>
-              <Button
-                variant="paper"
-                disabled={busy || resolved.broken || draft.sides === "single"}
-                onClick={() => void exportSide("back", "png")}
-              >
-                Foto del reverso
-              </Button>
-              <Button variant="solid" disabled={busy || resolved.broken} onClick={() => void exportSide("front", "pdf")}>
-                PDF del marcapáginas
-              </Button>
-            </span>
+            <label className="flex items-center gap-2 text-sm">
+              Semilla
+              <input
+                className="w-24 border border-line bg-white px-2 py-1"
+                type="number"
+                value={draft.seed}
+                onChange={(event) => commit((design) => ({ ...design, seed: Number(event.target.value) || 0 }))}
+              />
+            </label>
+            <Button
+              variant="paper"
+              onClick={() => commit((design) => ({ ...design, seed: Math.floor(Math.random() * 1_000_000) + 1 }))}
+            >
+              Barajar
+            </Button>
+            <p className="basis-full text-sm text-bark/60 xl:basis-auto">Cambia los textos dinámicos de esta pieza.</p>
           </div>
           {resolved.broken ? (
             <p className="px-3 py-2 text-sm text-mark">Hay un elemento que apunta a algo que ya no está en la biblioteca.</p>

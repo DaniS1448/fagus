@@ -34,6 +34,12 @@ sqlite.exec(`
 
   CREATE INDEX IF NOT EXISTS designs_project_id ON designs(project_id);
 
+  CREATE TABLE IF NOT EXISTS photo_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS photos (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -80,8 +86,20 @@ sqlite.exec(`
   );
 `)
 
+ensureColumn(
+  "photos",
+  "group_id",
+  "ALTER TABLE photos ADD COLUMN group_id TEXT REFERENCES photo_groups(id) ON DELETE SET NULL",
+)
+
 export const db = drizzle(sqlite, { schema })
 
 export function now(): number {
   return Date.now()
+}
+
+function ensureColumn(table: string, column: string, statement: string) {
+  const rows = sqlite.pragma(`table_info(${table})`) as Array<{ name: string }>
+  if (rows.some((row) => row.name === column)) return
+  sqlite.exec(statement)
 }

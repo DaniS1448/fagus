@@ -83,10 +83,10 @@ function paintElement(
       paintRaster(group, element.photoId, element, width, height, images)
       break
     case "quote":
-      paintQuote(group, element, width, height, pxPerMm)
+      paintQuote(group, element, width, pxPerMm)
       break
     case "bible":
-      paintBible(group, element, width, height, pxPerMm)
+      paintBible(group, element, width, pxPerMm)
       break
     case "identity":
       paintIdentity(group, element, width, height, pxPerMm, images)
@@ -137,41 +137,39 @@ function paintQuote(
   group: Konva.Group,
   element: Extract<ResolvedElement, { type: "quote" }>,
   width: number,
-  height: number,
   pxPerMm: number,
 ) {
+  const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
   const attribution = attributionLine(element.attribution)
-  const attributionHeight = attribution ? element.style.fontSizeMm * 0.78 * element.style.lineHeight * pxPerMm * 1.8 : 0
-  addText(group, element.text, element.style, 0, 0, width, height - attributionHeight, pxPerMm)
-  if (attribution) {
-    addText(
-      group,
-      attribution,
-      { ...element.style, fontSizeMm: element.style.fontSizeMm * 0.78 },
-      0,
-      height - attributionHeight,
-      width,
-      attributionHeight,
-      pxPerMm,
-    )
-  }
+  if (!attribution) return
+  addFlowingText(
+    group,
+    attribution,
+    { ...element.style, fontSizeMm: element.style.fontSizeMm * 0.78 },
+    0,
+    body.height() + element.gapMm * pxPerMm,
+    width,
+    pxPerMm,
+  )
 }
 
 function paintBible(
   group: Konva.Group,
   element: Extract<ResolvedElement, { type: "bible" }>,
   width: number,
-  height: number,
   pxPerMm: number,
 ) {
-  const referenceHeight =
-    element.showReference && element.reference
-      ? element.referenceStyle.fontSizeMm * element.referenceStyle.lineHeight * pxPerMm * 1.8
-      : 0
-  addText(group, element.text, element.style, 0, 0, width, height - referenceHeight, pxPerMm)
-  if (referenceHeight > 0) {
-    addText(group, element.reference, element.referenceStyle, 0, height - referenceHeight, width, referenceHeight, pxPerMm)
-  }
+  const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
+  if (!element.showReference || !element.reference) return
+  addFlowingText(
+    group,
+    element.reference,
+    element.referenceStyle,
+    0,
+    body.height() + element.gapMm * pxPerMm,
+    width,
+    pxPerMm,
+  )
 }
 
 function paintIdentity(
@@ -190,6 +188,33 @@ function paintIdentity(
   const text = addText(group, element.text, element.style, 0, 0, width, height, pxPerMm)
   const used = text.height()
   text.y(Math.max(0, (height - used) / 2))
+}
+
+function addFlowingText(
+  group: Konva.Group,
+  value: string,
+  style: TextStyle,
+  x: number,
+  y: number,
+  width: number,
+  pxPerMm: number,
+): Konva.Text {
+  const text = new Konva.Text({
+    text: value,
+    x,
+    y,
+    width,
+    fontFamily: fontLabel(style.fontFamily),
+    fontSize: style.fontSizeMm * pxPerMm,
+    lineHeight: style.lineHeight,
+    align: style.align,
+    fill: style.color,
+    letterSpacing: style.letterSpacingMm * pxPerMm,
+    wrap: "word",
+    listening: false,
+  })
+  group.add(text)
+  return text
 }
 
 function addText(

@@ -1,11 +1,10 @@
 import { NavLink, Outlet } from "react-router"
 
-const links = [
-  { to: "/", label: "Proyectos", end: true },
-  { to: "/quotes", label: "Citas", end: false },
-  { to: "/bible", label: "Textos bíblicos", end: false },
-  { to: "/identities", label: "Identidad", end: false },
-  { to: "/photos", label: "Fotos", end: false },
+const libraries = [
+  { to: "/quotes", label: "Citas" },
+  { to: "/bible", label: "Textos bíblicos" },
+  { to: "/identities", label: "Identidad" },
+  { to: "/photos", label: "Fotos" },
 ]
 
 export function Shell() {
@@ -13,21 +12,17 @@ export function Shell() {
     <div className="flex min-h-full flex-col bg-foam text-bark md:flex-row">
       <aside className="flex shrink-0 flex-col bg-bark text-mat md:min-h-screen md:w-56">
         <div className="px-5 pt-6 pb-4">
-          <p className="text-sm text-mat/70">Estudio local</p>
           <p className="text-3xl text-white">Fagus</p>
         </div>
         <nav className="flex gap-1 overflow-auto px-3 pb-4 md:flex-col">
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) =>
-                `px-3 py-2 text-sm whitespace-nowrap ${isActive ? "bg-white/10 text-white" : "text-mat hover:bg-white/5"}`
-              }
-            >
+          <RailLink to="/" end>
+            Proyectos
+          </RailLink>
+          <p className="hidden px-3 pt-5 pb-1 text-sm text-mat/60 md:block">Bibliotecas</p>
+          {libraries.map((link) => (
+            <RailLink key={link.to} to={link.to}>
               {link.label}
-            </NavLink>
+            </RailLink>
           ))}
         </nav>
         <p className="mt-auto hidden px-5 py-6 text-sm text-mat/60 md:block">
@@ -38,5 +33,19 @@ export function Shell() {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+function RailLink({ to, end = false, children }: { to: string; end?: boolean; children: string }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `px-3 py-2 text-sm whitespace-nowrap ${isActive ? "bg-white/10 text-white" : "text-mat hover:bg-white/5"}`
+      }
+    >
+      {children}
+    </NavLink>
   )
 }

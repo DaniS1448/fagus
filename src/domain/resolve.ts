@@ -66,6 +66,7 @@ export type ResolvedQuote = Frame & {
   text: string
   attribution: string
   style: TextStyle
+  gapMm: number
   broken: boolean
   sourceId: string | null
 }
@@ -77,6 +78,7 @@ export type ResolvedBible = Frame & {
   showReference: boolean
   style: TextStyle
   referenceStyle: TextStyle
+  gapMm: number
   broken: boolean
   sourceId: string | null
 }
@@ -174,6 +176,7 @@ function resolveElement(
         text: chosen?.body ?? "",
         attribution: chosen?.attribution ?? "",
         style: element.style,
+        gapMm: element.gapMm,
         broken: !chosen,
         sourceId: chosen?.id ?? null,
       }
@@ -193,6 +196,7 @@ function resolveElement(
         showReference: element.showReference,
         style: element.style,
         referenceStyle: element.referenceStyle,
+        gapMm: element.gapMm,
         broken: !chosen,
         sourceId: chosen?.id ?? null,
       }

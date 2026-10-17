@@ -23,10 +23,17 @@ export type Design = {
 
 export type Photo = {
   id: string
+  groupId: string | null
   name: string
   mime: string
   widthPx: number
   heightPx: number
+  createdAt: number
+}
+
+export type PhotoGroup = {
+  id: string
+  name: string
   createdAt: number
 }
 

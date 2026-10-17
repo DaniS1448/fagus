@@ -3,7 +3,7 @@ import { useState } from "react"
 import { ApiError, apiForm, apiGet, apiJson } from "../api"
 import type { Identity } from "../domain/models"
 import { imageForm, prepareImage } from "../media"
-import { Button, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
 import { LibraryScreen } from "./LibraryScreen"
 
 export function IdentitiesPage() {
@@ -165,14 +165,12 @@ export function IdentitiesPage() {
               Guardar identidad
             </Button>
             {selected ? (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm("¿Borrar este elemento de identidad?")) remove.mutate(selected.id)
-                }}
-              >
-                Borrar
-              </Button>
+              <ConfirmButton
+                label="Borrar"
+                question="¿Borrar este elemento de identidad?"
+                pending={remove.isPending}
+                onConfirm={() => remove.mutate(selected.id)}
+              />
             ) : null}
           </div>
         </form>

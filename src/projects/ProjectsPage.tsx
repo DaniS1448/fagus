@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
-import { Link } from "react-router"
-import { ApiError, apiGet, apiJson } from "../api"
+import { useRef, useState } from "react"
+import { Link, useNavigate } from "react-router"
+import { ApiError, apiForm, apiGet, apiJson } from "../api"
 import type { Project } from "../domain/models"
-import { Button, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
 
 export function ProjectsPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => apiGet<Project[]>("/api/projects") })
   const [name, setName] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const create = useMutation({
     mutationFn: () => apiJson<Project>("/api/projects", "POST", { name }),
@@ -19,6 +21,20 @@ export function ProjectsPage() {
       await queryClient.invalidateQueries({ queryKey: ["projects"] })
     },
     onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo crear"),
+  })
+
+  const importProject = useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData()
+      body.set("file", file)
+      return apiForm<{ projectId: string }>("/api/projects/import", "POST", body)
+    },
+    onSuccess: async (result) => {
+      setError(null)
+      await queryClient.invalidateQueries({ queryKey: ["projects"] })
+      navigate(`/projects/${result.projectId}`)
+    },
+    onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo importar"),
   })
 
   return (
@@ -40,6 +56,20 @@ export function ProjectsPage() {
         <Button type="submit" disabled={create.isPending || name.trim().length === 0}>
           Crear proyecto
         </Button>
+        <Button variant="quiet" disabled={importProject.isPending} onClick={() => fileRef.current?.click()}>
+          Importar proyecto
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".fagus"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ""
+            if (file) importProject.mutate(file)
+          }}
+        />
       </form>
       {error ? <div className="mt-3"><Notice>{error}</Notice></div> : null}
       <div className="mt-10">
@@ -106,18 +136,16 @@ function ProjectCard({ project }: { project: Project }) {
         </Link>
       )}
       {error ? <Notice>{error}</Notice> : null}
-      <div className="mt-auto flex gap-2">
+      <div className="mt-auto flex flex-wrap gap-2">
         <Button variant="quiet" onClick={() => setEditing(true)}>
           Renombrar
         </Button>
-        <Button
-          variant="danger"
-          onClick={() => {
-            if (window.confirm(`¿Borrar el proyecto «${project.name}» y todos sus diseños?`)) remove.mutate()
-          }}
-        >
-          Borrar
-        </Button>
+        <ConfirmButton
+          label="Borrar"
+          question={`¿Borrar «${project.name}» y sus diseños?`}
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate()}
+        />
       </div>
     </li>
   )

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { Quote } from "../domain/models"
-import { Button, EmptyState, Field, Notice, TextArea, TextInput } from "../ui/controls"
+import { Button, ConfirmButton, EmptyState, Field, Notice, TextArea, TextInput } from "../ui/controls"
 import { LibraryScreen } from "./LibraryScreen"
 
 const emptyForm = { body: "", attribution: "" }
@@ -59,7 +59,7 @@ export function QuotesPage() {
           </Button>
           {quotes.data && quotes.data.length === 0 ? (
             <div className="mt-6">
-              <EmptyState title="La biblioteca de citas está vacía">Escribe la primera en el panel de la derecha.</EmptyState>
+              <EmptyState title="La biblioteca de citas está vacía">Escribe la primera en la ficha.</EmptyState>
             </div>
           ) : null}
           <ul className="mt-4 flex flex-col gap-2">
@@ -103,14 +103,12 @@ export function QuotesPage() {
               Guardar cita
             </Button>
             {selected ? (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm("¿Borrar esta cita?")) remove.mutate(selected.id)
-                }}
-              >
-                Borrar
-              </Button>
+              <ConfirmButton
+                label="Borrar"
+                question="¿Borrar esta cita?"
+                pending={remove.isPending}
+                onConfirm={() => remove.mutate(selected.id)}
+              />
             ) : null}
           </div>
         </form>

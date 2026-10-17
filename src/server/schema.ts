@@ -23,8 +23,15 @@ export const designs = sqliteTable("designs", {
   updatedAt: integer("updated_at").notNull(),
 })
 
+export const photoGroups = sqliteTable("photo_groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+})
+
 export const photos = sqliteTable("photos", {
   id: text("id").primaryKey(),
+  groupId: text("group_id").references(() => photoGroups.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   mime: text("mime").notNull(),
   widthPx: integer("width_px").notNull(),

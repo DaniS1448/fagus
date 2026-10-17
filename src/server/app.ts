@@ -1,11 +1,12 @@
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { Hono } from "hono"
 import type { ZodError } from "zod"
 import { emptySide, parseSideDocument } from "../domain/document"
-import type { BibleText, Design, Identity, Photo, Project, Quote } from "../domain/models"
+import type { BibleText, Design, Identity, Photo, PhotoGroup, Project, Quote } from "../domain/models"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { db, now } from "./db"
-import { bibleTexts, designs, identities, photos, projects, quotes } from "./schema"
+import { exportBundle, importBundle, PortableError } from "./portable"
+import { bibleTexts, designs, identities, photoGroups, photos, projects, quotes } from "./schema"
 import {
   IMAGE_MIME,
   MAX_IMAGE_BYTES,
@@ -13,6 +14,8 @@ import {
   designCreateSchema,
   designPatchSchema,
   identityWordmarkSchema,
+  photoBulkSchema,
+  photoPatchSchema,
   projectInputSchema,
   quoteInputSchema,
   renameSchema,
@@ -40,6 +43,30 @@ export function createApp(): Hono {
     }
     db.insert(projects).values(row).run()
     return c.json(toProject(row), 201)
+  })
+
+  app.post("/api/projects/import", async (c) => {
+    const body = await c.req.parseBody()
+    const file = body.file
+    if (!(file instanceof File)) return c.json({ error: "Elige un archivo de proyecto" }, 400)
+    try {
+      const projectId = importBundle(Buffer.from(await file.arrayBuffer()))
+      return c.json({ projectId }, 201)
+    } catch (error) {
+      const message = error instanceof PortableError ? error.message : "No se pudo importar el proyecto"
+      return c.json({ error: message }, 400)
+    }
+  })
+
+  app.get("/api/projects/:id/export", (c) => {
+    const file = exportBundle(c.req.param("id"))
+    if (!file) return missing(c, "Proyecto")
+    return new Response(new Uint8Array(file.bytes), {
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${file.filename}"`,
+      },
+    })
   })
 
   app.get("/api/projects/:id", (c) => {
@@ -215,6 +242,7 @@ export function createApp(): Hono {
     const rows = db
       .select({
         id: photos.id,
+        groupId: photos.groupId,
         name: photos.name,
         mime: photos.mime,
         widthPx: photos.widthPx,
@@ -229,8 +257,10 @@ export function createApp(): Hono {
   app.post("/api/photos", async (c) => {
     const image = await readImageForm(c)
     if (image instanceof Response) return image
+    if (image.groupId && !groupExists(image.groupId)) return missing(c, "Agrupación")
     const row = {
       id: crypto.randomUUID(),
+      groupId: image.groupId,
       name: image.name,
       mime: image.mime,
       widthPx: image.widthPx,
@@ -243,15 +273,33 @@ export function createApp(): Hono {
     return c.json(toPhoto(row), 201)
   })
 
+  app.post("/api/photos/bulk", async (c) => {
+    const parsed = photoBulkSchema.safeParse(await readJson(c))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const { ids, op, groupId } = parsed.data
+    if (op === "delete") {
+      db.delete(photos).where(inArray(photos.id, ids)).run()
+      return c.body(null, 204)
+    }
+    if (groupId && !groupExists(groupId)) return missing(c, "Agrupación")
+    db.update(photos)
+      .set({ groupId: groupId ?? null })
+      .where(inArray(photos.id, ids))
+      .run()
+    return c.body(null, 204)
+  })
+
   app.patch("/api/photos/:id", async (c) => {
     const current = db.select({ id: photos.id }).from(photos).where(eq(photos.id, c.req.param("id"))).get()
     if (!current) return missing(c, "Foto")
-    const parsed = renameSchema.safeParse(await readJson(c))
+    const parsed = photoPatchSchema.safeParse(await readJson(c))
     if (!parsed.success) return invalid(c, parsed.error)
-    db.update(photos).set({ name: parsed.data.name }).where(eq(photos.id, current.id)).run()
+    if (parsed.data.groupId && !groupExists(parsed.data.groupId)) return missing(c, "Agrupación")
+    db.update(photos).set(parsed.data).where(eq(photos.id, current.id)).run()
     const row = db
       .select({
         id: photos.id,
+        groupId: photos.groupId,
         name: photos.name,
         mime: photos.mime,
         widthPx: photos.widthPx,
@@ -273,6 +321,37 @@ export function createApp(): Hono {
 
   app.get("/api/photos/:id/file", (c) => fileOf(c, "photo", "bytes"))
   app.get("/api/photos/:id/thumbnail", (c) => fileOf(c, "photo", "thumbnail"))
+
+  app.get("/api/photo-groups", (c) => {
+    const rows = db.select().from(photoGroups).all()
+    return c.json(rows.map(toPhotoGroup).sort((a, b) => a.name.localeCompare(b.name, "es")))
+  })
+
+  app.post("/api/photo-groups", async (c) => {
+    const parsed = projectInputSchema.safeParse(await readJson(c))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const row = { id: crypto.randomUUID(), name: parsed.data.name, createdAt: now() }
+    db.insert(photoGroups).values(row).run()
+    return c.json(toPhotoGroup(row), 201)
+  })
+
+  app.patch("/api/photo-groups/:id", async (c) => {
+    const current = db.select().from(photoGroups).where(eq(photoGroups.id, c.req.param("id"))).get()
+    if (!current) return missing(c, "Agrupación")
+    const parsed = projectInputSchema.safeParse(await readJson(c))
+    if (!parsed.success) return invalid(c, parsed.error)
+    db.update(photoGroups).set({ name: parsed.data.name }).where(eq(photoGroups.id, current.id)).run()
+    return c.json(toPhotoGroup({ ...current, name: parsed.data.name }))
+  })
+
+  app.delete("/api/photo-groups/:id", (c) => {
+    const id = c.req.param("id")
+    const current = db.select().from(photoGroups).where(eq(photoGroups.id, id)).get()
+    if (!current) return missing(c, "Agrupación")
+    db.update(photos).set({ groupId: null }).where(eq(photos.groupId, id)).run()
+    db.delete(photoGroups).where(eq(photoGroups.id, id)).run()
+    return c.body(null, 204)
+  })
 
   app.get("/api/identities", (c) => {
     const rows = db
@@ -452,13 +531,22 @@ function toBible(row: typeof bibleTexts.$inferSelect): BibleText {
 
 function toPhoto(row: {
   id: string
+  groupId: string | null
   name: string
   mime: string
   widthPx: number
   heightPx: number
   createdAt: number
 }): Photo {
+  return { ...row, groupId: row.groupId ?? null }
+}
+
+function toPhotoGroup(row: { id: string; name: string; createdAt: number }): PhotoGroup {
   return row
+}
+
+function groupExists(id: string): boolean {
+  return Boolean(db.select({ id: photoGroups.id }).from(photoGroups).where(eq(photoGroups.id, id)).get())
 }
 
 function toIdentity(row: {
@@ -503,6 +591,7 @@ type ImagePayload = {
   heightPx: number
   thumbnail: Buffer
   bytes: Buffer
+  groupId: string | null
 }
 
 async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status?: number) => Response }): Promise<ImagePayload | Response> {
@@ -526,6 +615,7 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
   const nameValue = typeof body.name === "string" ? body.name.trim() : ""
   const name = nameValue || file.name.replace(/\.[^.]+$/, "") || "Imagen"
   if (name.length > 120) return c.json({ error: "El nombre es demasiado largo" }, 400)
+  const groupValue = typeof body.groupId === "string" ? body.groupId.trim() : ""
   return {
     name,
     mime: file.type,
@@ -533,6 +623,7 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
     heightPx,
     thumbnail: Buffer.from(await thumbnail.arrayBuffer()),
     bytes: Buffer.from(await file.arrayBuffer()),
+    groupId: groupValue || null,
   }
 }
 

@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { Link, useParams } from "react-router"
+import { Link, useNavigate, useParams } from "react-router"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { Design, Project } from "../domain/models"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
-import { Button, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { downloadBlob, slugify } from "../media"
+import { Button, ButtonLink, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
 
 export function ProjectPage() {
+  const navigate = useNavigate()
   const { projectId = "" } = useParams()
   const queryClient = useQueryClient()
   const project = useQuery({
@@ -26,9 +28,10 @@ export function ProjectPage() {
   const create = useMutation({
     mutationFn: () =>
       apiJson<Design>(`/api/projects/${projectId}/designs`, "POST", { name, widthMm, heightMm, sides }),
-    onSuccess: async () => {
+    onSuccess: async (design) => {
       setError(null)
       await queryClient.invalidateQueries({ queryKey: ["designs", projectId] })
+      navigate(`/projects/${projectId}/designs/${design.id}`)
     },
     onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo crear el diseño"),
   })
@@ -42,9 +45,23 @@ export function ProjectPage() {
       </p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-3xl">{project.data?.name ?? "Proyecto"}</h1>
-        <Link to={`/projects/${projectId}/print`} className="bg-ink px-3 py-2 text-sm text-paper">
-          Componer pliego
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink to={`/projects/${projectId}/print`}>Componer pliego</ButtonLink>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              void fetch(`/api/projects/${projectId}/export`)
+                .then(async (response) => {
+                  if (!response.ok) throw new Error("No se pudo exportar")
+                  const blob = await response.blob()
+                  downloadBlob(blob, `${slugify(project.data?.name ?? "proyecto")}.fagus`)
+                })
+                .catch(() => setError("No se pudo exportar el proyecto"))
+            }}
+          >
+            Exportar proyecto
+          </Button>
+        </div>
       </div>
       {project.error ? <Notice>No se encontró el proyecto.</Notice> : null}
       <form
@@ -134,29 +151,25 @@ function DesignCard({ design, projectId }: { design: Design; projectId: string }
           aria-hidden
         />
         <div>
-          <Link to={`/projects/${projectId}/designs/${design.id}`} className="text-lg hover:underline">
-            {design.name}
-          </Link>
+        <Link to={`/projects/${projectId}/designs/${design.id}`} className="text-lg">
+          {design.name}
+        </Link>
           <p className="text-sm text-bark/60">
             {formatMm(design.widthMm)} × {formatMm(design.heightMm)} mm · {design.sides === "double" ? "Dos caras" : "Una cara"}
           </p>
         </div>
       </div>
       <div className="mt-auto flex flex-wrap gap-2">
-        <Link to={`/projects/${projectId}/designs/${design.id}`} className="bg-ink px-3 py-2 text-sm text-paper">
-          Abrir editor
-        </Link>
+        <ButtonLink to={`/projects/${projectId}/designs/${design.id}`}>Abrir editor</ButtonLink>
         <Button variant="quiet" onClick={() => duplicate.mutate()}>
           Duplicar
         </Button>
-        <Button
-          variant="danger"
-          onClick={() => {
-            if (window.confirm(`¿Borrar el diseño «${design.name}»?`)) remove.mutate()
-          }}
-        >
-          Borrar
-        </Button>
+        <ConfirmButton
+          label="Borrar"
+          question={`¿Borrar «${design.name}»?`}
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate()}
+        />
       </div>
     </li>
   )

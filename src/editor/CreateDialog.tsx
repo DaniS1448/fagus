@@ -1,9 +1,10 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { ApiError, apiForm, apiJson } from "../api"
-import type { BibleText, Identity, Photo, Quote } from "../domain/models"
+import { ApiError, apiForm, apiGet, apiJson } from "../api"
+import type { BibleText, Identity, PhotoGroup, Quote } from "../domain/models"
+import { uploadPhotos } from "../library/uploadPhotos"
 import { imageForm, prepareImage } from "../media"
-import { Button, Field, Notice, TextArea, TextInput } from "../ui/controls"
+import { Button, Field, Notice, Select, TextArea, TextInput } from "../ui/controls"
 
 export type DialogKind = "quote" | "bible" | "wordmark" | "logo" | "photo"
 
@@ -184,14 +185,82 @@ function WordmarkForm({ onClose }: { onClose: () => void }) {
 }
 
 function LogoForm({ onClose }: { onClose: () => void }) {
-  return <ImageForm kind="logo" onClose={onClose} />
+  return <ImageForm onClose={onClose} />
 }
 
 function PhotoForm({ onClose }: { onClose: () => void }) {
-  return <ImageForm kind="photo" onClose={onClose} />
+  const queryClient = useQueryClient()
+  const groups = useQuery({ queryKey: ["photo-groups"], queryFn: () => apiGet<PhotoGroup[]>("/api/photo-groups") })
+  const [name, setName] = useState("")
+  const [groupId, setGroupId] = useState("none")
+  const [files, setFiles] = useState<File[]>([])
+  const [progress, setProgress] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const many = files.length > 1
+  const save = useMutation({
+    mutationFn: async () => {
+      if (files.length === 0) throw new ApiError("Elige un archivo")
+      const destination = groupId === "none" ? null : groupId
+      if (files.length === 1) {
+        const file = files[0]
+        if (!file) throw new ApiError("Elige un archivo")
+        const prepared = await prepareImage(file)
+        await apiForm("/api/photos", "POST", imageForm(prepared, name || file.name.replace(/\.[^.]+$/, ""), destination))
+        return []
+      }
+      return uploadPhotos(files, destination, (done, total) => setProgress(`${done} de ${total}`))
+    },
+    onSuccess: async (failures) => {
+      await queryClient.invalidateQueries({ queryKey: ["photos"] })
+      if (failures.length > 0) {
+        setError(`No cupieron: ${failures.join(", ")}`)
+        setProgress(null)
+        return
+      }
+      onClose()
+    },
+    onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo guardar"),
+  })
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        save.mutate()
+      }}
+    >
+      {many ? null : (
+        <Field label="Nombre">
+          <TextInput value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
+      )}
+      <Field label="Cajón">
+        <Select value={groupId} onChange={(event) => setGroupId(event.target.value)}>
+          <option value="none">Sin agrupar</option>
+          {groups.data?.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Archivos">
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          onChange={(event) => setFiles([...(event.target.files ?? [])])}
+        />
+      </Field>
+      {many ? <p className="text-sm text-bark/60">Se usará el nombre de cada archivo.</p> : null}
+      {progress ? <p className="text-sm">Subiendo {progress}</p> : null}
+      {error ? <Notice>{error}</Notice> : null}
+      <FormActions pending={save.isPending} onClose={onClose} label="Subir fotos" />
+    </form>
+  )
 }
 
-function ImageForm({ kind, onClose }: { kind: "logo" | "photo"; onClose: () => void }) {
+function ImageForm({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -201,11 +270,10 @@ function ImageForm({ kind, onClose }: { kind: "logo" | "photo"; onClose: () => v
       if (!file) throw new ApiError("Elige un archivo")
       const prepared = await prepareImage(file)
       const body = imageForm(prepared, name || file.name.replace(/\.[^.]+$/, ""))
-      if (kind === "photo") return apiForm<Photo>("/api/photos", "POST", body)
       return apiForm<Identity>("/api/identities", "POST", body)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [kind === "photo" ? "photos" : "identities"] })
+      await queryClient.invalidateQueries({ queryKey: ["identities"] })
       onClose()
     },
     onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo guardar"),
@@ -225,7 +293,7 @@ function ImageForm({ kind, onClose }: { kind: "logo" | "photo"; onClose: () => v
         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
       </Field>
       {error ? <Notice>{error}</Notice> : null}
-      <FormActions pending={save.isPending} onClose={onClose} label={kind === "photo" ? "Subir foto" : "Guardar logo"} />
+      <FormActions pending={save.isPending} onClose={onClose} label="Guardar logo" />
     </form>
   )
 }

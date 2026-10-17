@@ -1,10 +1,5 @@
-import type {
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react"
+import { useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react"
+import { Link } from "react-router"
 
 const buttonStyles = {
   solid: "bg-ink text-paper hover:bg-ink/90",
@@ -25,6 +20,54 @@ export function Button({
       className={`px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${buttonStyles[variant]} ${className}`}
       {...props}
     />
+  )
+}
+
+export function ButtonLink({
+  to,
+  variant = "solid",
+  children,
+}: {
+  to: string
+  variant?: keyof typeof buttonStyles
+  children: ReactNode
+}) {
+  return (
+    <Link to={to} className={`inline-block px-3 py-2 text-sm ${buttonStyles[variant]}`}>
+      {children}
+    </Link>
+  )
+}
+
+export function ConfirmButton({
+  label,
+  question,
+  onConfirm,
+  pending = false,
+}: {
+  label: string
+  question: string
+  onConfirm: () => void
+  pending?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  if (!open) {
+    return (
+      <Button variant="danger" onClick={() => setOpen(true)}>
+        {label}
+      </Button>
+    )
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="text-sm">{question}</span>
+      <Button variant="danger" disabled={pending} onClick={onConfirm}>
+        {label}
+      </Button>
+      <Button variant="quiet" onClick={() => setOpen(false)}>
+        Cancelar
+      </Button>
+    </span>
   )
 }
 

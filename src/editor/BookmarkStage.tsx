@@ -70,13 +70,16 @@ export function BookmarkStage(props: StageProps) {
   }, [props.selectedId, props.pxPerMm])
 
   const ruler = 24
+  const pageWidth = Math.max(1, Math.round(props.widthMm * props.pxPerMm))
+  const pageHeight = Math.max(1, Math.round(props.heightMm * props.pxPerMm))
   return (
-    <div className="relative" style={{ paddingLeft: ruler, paddingTop: ruler }}>
+    <div className="relative w-fit" style={{ paddingLeft: ruler, paddingTop: ruler }}>
       <Ruler axis="x" lengthMm={props.widthMm} pxPerMm={props.pxPerMm} offset={ruler} />
       <Ruler axis="y" lengthMm={props.heightMm} pxPerMm={props.pxPerMm} offset={ruler} />
       <div
         ref={containerRef}
         className="bg-paper shadow-[0_18px_40px_rgba(26,24,20,0.18)]"
+        style={{ width: pageWidth, height: pageHeight }}
         role="application"
         aria-label="Marcapáginas"
       />

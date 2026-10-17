@@ -41,12 +41,18 @@ export const photoElementSchema = z.object({
   ...fitFields,
 })
 
+const gapMmSchema = z.preprocess((value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 2
+  return Math.min(30, Math.max(0, value))
+}, z.number())
+
 export const quoteElementSchema = z.object({
   type: z.literal("quote"),
   mode: z.enum(["fixed", "pool"]),
   quoteId: z.string().nullable(),
   poolIds: z.array(z.string()),
   style: textStyleSchema,
+  gapMm: gapMmSchema,
   ...frameFields,
 })
 
@@ -58,6 +64,7 @@ export const bibleElementSchema = z.object({
   showReference: z.boolean(),
   style: textStyleSchema,
   referenceStyle: textStyleSchema,
+  gapMm: gapMmSchema,
   ...frameFields,
 })
 
@@ -145,6 +152,7 @@ export function createQuoteElement(pageWidth: number, pageHeight: number): Quote
     height,
     rotation: 0,
     style: textStyle(),
+    gapMm: 2,
   }
 }
 
@@ -168,6 +176,7 @@ export function createBibleElement(pageWidth: number, pageHeight: number): Bible
       fontFamily: "source-sans-3",
       fontSizeMm: 2.6,
     }),
+    gapMm: 2,
   }
 }
 

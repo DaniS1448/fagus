@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib"
 import { describe, expect, it } from "vitest"
-import { emptySide, textStyle, type SideDocument } from "./document"
+import { emptySide, parseSideDocument, textStyle, type SideDocument } from "./document"
 import { impose, mirrorAxis } from "./impose"
 import { photoPlacement, snapAngle, snapFrame } from "./placement"
 import { buildPdf } from "./pdf"
@@ -71,6 +71,7 @@ function quoteDocument(
         height: 20,
         rotation: 0,
         style: textStyle(),
+        gapMm: 2,
         ...partial,
       },
     ],
@@ -98,6 +99,7 @@ describe("resolveDocument", () => {
             rotation: 0,
             style: textStyle(),
             referenceStyle: textStyle(),
+            gapMm: 2,
           },
         ],
       },
@@ -339,5 +341,34 @@ describe("buildPdf", () => {
     expect(bookmark?.getHeight()).toBeCloseTo((155 * 72) / 25.4, 2)
     expect(sheet?.getWidth()).toBeCloseTo((210 * 72) / 25.4, 2)
     expect(sheet?.getHeight()).toBeCloseTo((297 * 72) / 25.4, 2)
+  })
+})
+
+describe("parseSideDocument", () => {
+  it("keeps an older text and gives it a 2 mm gap", () => {
+    const parsed = parseSideDocument({
+      background: "#F4F0E6",
+      elements: [
+        {
+          id: "el-2",
+          type: "bible",
+          mode: "fixed",
+          bibleTextId: "b1",
+          poolIds: [],
+          showReference: true,
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 80,
+          rotation: 0,
+          style: textStyle(),
+          referenceStyle: textStyle(),
+        },
+      ],
+    })
+    const element = parsed.elements[0]
+    if (element?.type !== "bible") throw new Error("shape")
+    expect(element.gapMm).toBe(2)
+    expect(parsed.elements).toHaveLength(1)
   })
 })

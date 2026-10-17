@@ -1,10 +1,11 @@
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import type { BookmarkElement } from "../domain/document"
-import type { BibleText, Identity, Photo, Quote } from "../domain/models"
+import type { BibleText, Identity, Photo, PhotoGroup, Quote } from "../domain/models"
 import { activeDocument, useEditorStore } from "./store"
 
 type Libraries = {
   photos: Photo[]
+  groups: PhotoGroup[]
   quotes: Quote[]
   bibleTexts: BibleText[]
   identities: Identity[]
@@ -32,82 +33,11 @@ export function ToolRail({
   const addElement = useEditorStore((state) => state.addElement)
   if (!draft) return null
   const document = activeDocument(draft, side)
+  const has = (type: BookmarkElement["type"]) => document.elements.some((element) => element.type === type)
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-auto border-r border-line bg-foam px-4 py-4">
-      <Section title="Fotos" action="Subir" onAction={onCreatePhoto}>
-        {libraries.photos.length === 0 ? <Hint>Sube una foto para encajarla en el marco.</Hint> : null}
-        <div className="grid grid-cols-3 gap-2">
-          {libraries.photos.map((photo) => (
-            <button
-              key={photo.id}
-              type="button"
-              className="border border-line bg-paper"
-              title={photo.name}
-              onClick={() =>
-                addElement(
-                  {
-                    id: crypto.randomUUID(),
-                    type: "photo",
-                    photoId: photo.id,
-                    x: 0,
-                    y: 0,
-                    width: draft.widthMm,
-                    height: draft.heightMm,
-                    rotation: 0,
-                    fit: "cover",
-                    scale: 1,
-                    offsetX: 0,
-                    offsetY: 0,
-                  },
-                  "back",
-                )
-              }
-            >
-              <img src={`/api/photos/${photo.id}/thumbnail`} alt={photo.name} className="aspect-[3/4] w-full object-cover" />
-            </button>
-          ))}
-        </div>
-      </Section>
-      <Section title="Citas" action="Nueva" onAction={onCreateQuote}>
-        <AddPool
-          label="Caja dinámica"
-          onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
-        />
-        {libraries.quotes.map((quote) => (
-          <ItemButton
-            key={quote.id}
-            label={quote.body}
-            onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "fixed", quote.id), "front")}
-          />
-        ))}
-      </Section>
-      <Section title="Textos bíblicos" action="Nuevo" onAction={onCreateBible}>
-        <AddPool
-          label="Caja dinámica"
-          onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
-        />
-        {libraries.bibleTexts.map((text) => (
-          <ItemButton
-            key={text.id}
-            label={`${text.book} ${text.chapter}:${text.verseStart}`}
-            onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "fixed", text.id), "front")}
-          />
-        ))}
-      </Section>
-      <Section title="Identidad" action="Título" onAction={onCreateWordmark}>
-        <button type="button" className="text-left text-sm text-ink underline" onClick={onCreateLogo}>
-          Subir logo
-        </button>
-        {libraries.identities.map((item) => (
-          <ItemButton
-            key={item.id}
-            label={item.kind === "logo" ? item.name : item.text}
-            onClick={() => addElement(identityElement(item, draft.widthMm, draft.heightMm), "front")}
-          />
-        ))}
-      </Section>
-      <Section title="En esta cara">
+      <Section title="En esta cara" defaultOpen>
         {document.elements.length === 0 ? <Hint>Esta cara está vacía.</Hint> : null}
         <ol className="flex flex-col gap-1">
           {[...document.elements].reverse().map((element) => (
@@ -122,6 +52,70 @@ export function ToolRail({
             </li>
           ))}
         </ol>
+      </Section>
+      <Section title="Fotos" action="Subir" onAction={onCreatePhoto} defaultOpen={has("photo")}>
+        {libraries.photos.length === 0 ? <Hint>Sube una foto para encajarla en el marco.</Hint> : null}
+        <PhotoDrawers
+          photos={libraries.photos}
+          groups={libraries.groups}
+          onAdd={(photo) =>
+            addElement(
+              {
+                id: crypto.randomUUID(),
+                type: "photo",
+                photoId: photo.id,
+                x: 0,
+                y: 0,
+                width: draft.widthMm,
+                height: draft.heightMm,
+                rotation: 0,
+                fit: "cover",
+                scale: 1,
+                offsetX: 0,
+                offsetY: 0,
+              },
+              "back",
+            )
+          }
+        />
+      </Section>
+      <Section title="Citas" action="Nueva" onAction={onCreateQuote} defaultOpen={has("quote")}>
+        <AddPool
+          label="Caja dinámica"
+          onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
+        />
+        {libraries.quotes.map((quote) => (
+          <ItemButton
+            key={quote.id}
+            label={quote.body}
+            onClick={() => addElement(quoteElement(draft.widthMm, draft.heightMm, "fixed", quote.id), "front")}
+          />
+        ))}
+      </Section>
+      <Section title="Textos bíblicos" action="Nuevo" onAction={onCreateBible} defaultOpen={has("bible")}>
+        <AddPool
+          label="Caja dinámica"
+          onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "pool", null), "front")}
+        />
+        {libraries.bibleTexts.map((text) => (
+          <ItemButton
+            key={text.id}
+            label={`${text.book} ${text.chapter}:${text.verseStart}`}
+            onClick={() => addElement(bibleElement(draft.widthMm, draft.heightMm, "fixed", text.id), "front")}
+          />
+        ))}
+      </Section>
+      <Section title="Identidad" action="Título" onAction={onCreateWordmark} defaultOpen={has("identity")}>
+        <button type="button" className="text-left text-sm text-ink underline" onClick={onCreateLogo}>
+          Subir logo
+        </button>
+        {libraries.identities.map((item) => (
+          <ItemButton
+            key={item.id}
+            label={item.kind === "logo" ? item.name : item.text}
+            onClick={() => addElement(identityElement(item, draft.widthMm, draft.heightMm), "front")}
+          />
+        ))}
       </Section>
     </div>
   )
@@ -154,6 +148,7 @@ function quoteElement(
       color: "#1A1814",
       letterSpacingMm: 0,
     },
+    gapMm: 2,
   }
 }
 
@@ -193,6 +188,7 @@ function bibleElement(
       color: "#1A1814",
       letterSpacingMm: 0.05,
     },
+    gapMm: 2,
   }
 }
 
@@ -267,28 +263,82 @@ function elementLabel(element: BookmarkElement, libraries: Libraries): string {
   }
 }
 
+function PhotoDrawers({
+  photos,
+  groups,
+  onAdd,
+}: {
+  photos: Photo[]
+  groups: PhotoGroup[]
+  onAdd: (photo: Photo) => void
+}) {
+  const named = groups
+    .map((group) => ({ group, photos: photos.filter((photo) => photo.groupId === group.id) }))
+    .filter((entry) => entry.photos.length > 0)
+  const loose = photos.filter((photo) => photo.groupId == null)
+  const showLooseLabel = named.length > 0 && loose.length > 0
+  return (
+    <>
+      {named.map((entry) => (
+        <div key={entry.group.id} className="mb-2">
+          <p className="px-1 pb-1 text-sm text-bark/60">{entry.group.name}</p>
+          <ThumbGrid photos={entry.photos} onAdd={onAdd} />
+        </div>
+      ))}
+      {loose.length > 0 ? (
+        <div>
+          {showLooseLabel ? <p className="px-1 pb-1 text-sm text-bark/60">Sin agrupar</p> : null}
+          <ThumbGrid photos={loose} onAdd={onAdd} />
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+function ThumbGrid({ photos, onAdd }: { photos: Photo[]; onAdd: (photo: Photo) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {photos.map((photo) => (
+        <button key={photo.id} type="button" className="border border-line bg-paper" title={photo.name} onClick={() => onAdd(photo)}>
+          <img src={`/api/photos/${photo.id}/thumbnail`} alt={photo.name} className="aspect-[3/4] w-full object-cover" />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Section({
   title,
   action,
   onAction,
+  defaultOpen,
   children,
 }: {
   title: string
   action?: string
   onAction?: () => void
+  defaultOpen: boolean
   children: ReactNode
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm">{title}</h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className={`text-sm ${open ? "text-bark" : "text-bark/60"}`}
+        >
+          {title}
+        </button>
         {action && onAction ? (
           <button type="button" className="text-sm text-ink underline" onClick={onAction}>
             {action}
           </button>
         ) : null}
       </div>
-      <div className="flex flex-col gap-1">{children}</div>
+      {open ? <div className="flex flex-col gap-1">{children}</div> : null}
     </section>
   )
 }

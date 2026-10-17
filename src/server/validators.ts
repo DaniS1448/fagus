@@ -52,6 +52,27 @@ export const renameSchema = z.object({
   name: nameSchema,
 })
 
+export const photoPatchSchema = z
+  .object({
+    name: nameSchema.optional(),
+    groupId: z.string().min(1).nullable().optional(),
+  })
+  .refine((value) => value.name !== undefined || value.groupId !== undefined, {
+    message: "No hay cambios",
+  })
+
+export const photoBulkSchema = z
+  .object({
+    ids: z.array(z.string().min(1)).min(1, "Elige al menos una foto").max(200),
+    op: z.enum(["delete", "move"]),
+    groupId: z.string().min(1).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.op === "move" && value.groupId === undefined) {
+      context.addIssue({ code: "custom", message: "Elige una agrupación" })
+    }
+  })
+
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
 export const IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"])

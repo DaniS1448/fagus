@@ -30,7 +30,12 @@ export function Properties({
   if (!draft || !selectedId) {
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-bark/70">Selecciona un elemento del marcapáginas para ajustar su marco, su texto o su foto.</p>
+        <p className="text-sm">Selecciona un elemento del marcapáginas.</p>
+        <ul className="flex flex-col gap-2 text-sm text-bark/70">
+          <li>Clic en el marco para seleccionarlo.</li>
+          <li>Flechas para mover 0,2 mm. Con mayúsculas, 1 mm.</li>
+          <li>Las guías de 3 mm no se imprimen.</li>
+        </ul>
         {draft ? <BackgroundField /> : null}
       </div>
     )
@@ -177,6 +182,15 @@ function ElementFields({
             }}
           />
           <StyleFields style={element.style} onChange={(style, mode) => onPatch(() => ({ ...element, style }), mode)} begin={begin} end={end} />
+          <NumberField
+            label="Separación (mm)"
+            value={element.gapMm}
+            min={0}
+            max={30}
+            onChange={(gapMm) => onPatch(() => ({ ...element, gapMm }), "live")}
+            begin={begin}
+            end={end}
+          />
         </>
       )
     case "bible":
@@ -236,6 +250,15 @@ function ElementFields({
             label="Referencia"
             style={element.referenceStyle}
             onChange={(referenceStyle, mode) => onPatch(() => ({ ...element, referenceStyle }), mode)}
+            begin={begin}
+            end={end}
+          />
+          <NumberField
+            label="Separación (mm)"
+            value={element.gapMm}
+            min={0}
+            max={30}
+            onChange={(gapMm) => onPatch(() => ({ ...element, gapMm }), "live")}
             begin={begin}
             end={end}
           />
@@ -421,6 +444,7 @@ function NumberField({
   begin,
   end,
   min,
+  max,
   step = 0.1,
 }: {
   label: string
@@ -429,6 +453,7 @@ function NumberField({
   begin: () => void
   end: () => void
   min?: number
+  max?: number
   step?: number
 }) {
   return (
@@ -438,6 +463,7 @@ function NumberField({
         type="number"
         value={round(value)}
         min={min}
+        max={max}
         step={step}
         onFocus={begin}
         onBlur={end}

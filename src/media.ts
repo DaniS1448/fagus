@@ -31,13 +31,18 @@ export async function prepareImage(file: File): Promise<{
   return { file, thumbnail, width, height }
 }
 
-export function imageForm(prepared: Awaited<ReturnType<typeof prepareImage>>, name: string): FormData {
+export function imageForm(
+  prepared: Awaited<ReturnType<typeof prepareImage>>,
+  name: string,
+  groupId?: string | null,
+): FormData {
   const body = new FormData()
   body.set("file", prepared.file)
   body.set("thumbnail", prepared.thumbnail, "thumbnail.jpg")
   body.set("widthPx", String(prepared.width))
   body.set("heightPx", String(prepared.height))
   body.set("name", name)
+  if (groupId) body.set("groupId", groupId)
   return body
 }
 
