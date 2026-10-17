@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { ItemGroup } from "../domain/models"
 import { Button, ConfirmButton, Field, Notice, Select, TextInput } from "../ui/controls"
+import { LibraryTransfer } from "./LibraryTransfer"
 import { BULK_LIMIT } from "./search"
 
 export type DrawerFilter = "all" | "none" | string
@@ -117,6 +118,7 @@ export function GroupShelf({
       {active ? (
         <GroupName
           key={active.id}
+          kind={kind}
           group={active}
           dissolveCopy={dissolveCopy}
           pending={dissolve.isPending}
@@ -250,12 +252,14 @@ function DrawerButton({ pressed, onClick, children }: { pressed: boolean; onClic
 }
 
 function GroupName({
+  kind,
   group,
   dissolveCopy,
   pending,
   onRename,
   onDissolve,
 }: {
+  kind: Kind
   group: ItemGroup
   dissolveCopy: string
   pending: boolean
@@ -277,6 +281,7 @@ function GroupName({
       <Button type="submit" variant="quiet" disabled={name.trim().length === 0 || name === group.name}>
         Guardar nombre
       </Button>
+      <LibraryTransfer scope={kind} group={group} />
       <ConfirmButton label="Disolver" question={dissolveCopy} pending={pending} onConfirm={onDissolve} />
     </form>
   )

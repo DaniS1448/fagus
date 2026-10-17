@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm"
 import { Hono, type Context } from "hono"
 import type { ZodError } from "zod"
 import { emptySide, parseSideDocument } from "../domain/document"
+import type { LibraryScope } from "../domain/portable"
 import type { BibleText, Design, Identity, Photo, PhotoGroup, Project, Quote } from "../domain/models"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { db, now } from "./db"
@@ -399,7 +400,16 @@ export function createApp(): Hono {
   app.get("/api/library/export", (c) => {
     const parsed = libraryScopeSchema.safeParse(c.req.query("scope"))
     if (!parsed.success) return c.json({ error: "Elige qué biblioteca exportar" }, 400)
-    const file = exportLibrary(parsed.data)
+    const scope = parsed.data
+    const groupId = c.req.query("group")?.trim()
+    if (!groupId) {
+      const file = exportLibrary(scope)
+      return fileResponse(file.bytes, file.filename)
+    }
+    if (scope === "all") return c.json({ error: "Elige una sección para exportar la agrupación" }, 400)
+    const group = findExportGroup(scope, groupId)
+    if (!group) return missing(c, "Agrupación")
+    const file = exportLibrary(scope, group)
     return fileResponse(file.bytes, file.filename)
   })
 
@@ -798,6 +808,27 @@ function toPhoto(row: {
 
 function toPhotoGroup(row: { id: string; name: string; createdAt: number }): PhotoGroup {
   return row
+}
+
+function findExportGroup(scope: Exclude<LibraryScope, "all">, id: string): { id: string; name: string } | undefined {
+  switch (scope) {
+    case "quotes":
+      return db.select({ id: quoteGroups.id, name: quoteGroups.name }).from(quoteGroups).where(eq(quoteGroups.id, id)).get()
+    case "bible":
+      return db.select({ id: bibleGroups.id, name: bibleGroups.name }).from(bibleGroups).where(eq(bibleGroups.id, id)).get()
+    case "identities":
+      return db
+        .select({ id: identityGroups.id, name: identityGroups.name })
+        .from(identityGroups)
+        .where(eq(identityGroups.id, id))
+        .get()
+    case "photos":
+      return db.select({ id: photoGroups.id, name: photoGroups.name }).from(photoGroups).where(eq(photoGroups.id, id)).get()
+    default: {
+      const unknown: never = scope
+      return unknown
+    }
+  }
 }
 
 function groupExists(id: string): boolean {

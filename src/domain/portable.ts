@@ -25,6 +25,30 @@ export type ExportSelection = {
 
 export type LibraryScope = "all" | "quotes" | "bible" | "identities" | "photos"
 
+const FILE_STEMS: Record<LibraryScope, string> = {
+  all: "bibliotecas",
+  quotes: "citas",
+  bible: "textos",
+  identities: "identidad",
+  photos: "fotos",
+}
+
+export function libraryFilename(scope: LibraryScope, groupName?: string): string {
+  const stem = FILE_STEMS[scope]
+  if (!groupName) return `${stem}.fagus`
+  return `${stem}-${fileSlug(groupName)}.fagus`
+}
+
+function fileSlug(name: string): string {
+  const value = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return value || "agrupacion"
+}
+
 export function includedLibraries(scope: LibraryScope): {
   quotes: boolean
   bible: boolean

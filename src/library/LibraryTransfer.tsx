@@ -1,17 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useRef } from "react"
 import { downloadFile, uploadForm } from "../api"
-import type { LibraryScope } from "../domain/portable"
+import { libraryFilename, type LibraryScope } from "../domain/portable"
 import { downloadBlob } from "../media"
 import { Button } from "../ui/controls"
 import { TransferDialog, useTransfer } from "../ui/TransferDialog"
 
-const labels: Record<LibraryScope, { export: string; import: string; filename: string }> = {
-  all: { export: "Exportar bibliotecas", import: "Importar bibliotecas", filename: "bibliotecas.fagus" },
-  quotes: { export: "Exportar", import: "Importar", filename: "citas.fagus" },
-  bible: { export: "Exportar", import: "Importar", filename: "textos.fagus" },
-  identities: { export: "Exportar", import: "Importar", filename: "identidad.fagus" },
-  photos: { export: "Exportar", import: "Importar", filename: "fotos.fagus" },
+const labels: Record<LibraryScope, { export: string; import: string }> = {
+  all: { export: "Exportar bibliotecas", import: "Importar bibliotecas" },
+  quotes: { export: "Exportar", import: "Importar" },
+  bible: { export: "Exportar", import: "Importar" },
+  identities: { export: "Exportar", import: "Importar" },
+  photos: { export: "Exportar", import: "Importar" },
 }
 
 const titles: Record<LibraryScope, { export: string; import: string }> = {
@@ -24,7 +24,7 @@ const titles: Record<LibraryScope, { export: string; import: string }> = {
 
 const libraryKeys = ["quotes", "bible", "identities", "photos", "photo-groups", "quote-groups", "bible-groups", "identity-groups"]
 
-export function LibraryTransfer({ scope }: { scope: LibraryScope }) {
+export function LibraryTransfer({ scope, group }: { scope: LibraryScope; group?: { id: string; name: string } }) {
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const { transfer, run, close } = useTransfer()
@@ -33,9 +33,12 @@ export function LibraryTransfer({ scope }: { scope: LibraryScope }) {
   const busy = transfer !== null
 
   function exportLibrary() {
-    void run(title.export, "preparing", "No se pudo exportar", async (onProgress) => {
-      const blob = await downloadFile(`/api/library/export?scope=${scope}`, onProgress)
-      downloadBlob(blob, copy.filename)
+    const path = group
+      ? `/api/library/export?scope=${scope}&group=${encodeURIComponent(group.id)}`
+      : `/api/library/export?scope=${scope}`
+    void run(group ? "Exportar agrupación" : title.export, "preparing", "No se pudo exportar", async (onProgress) => {
+      const blob = await downloadFile(path, onProgress)
+      downloadBlob(blob, libraryFilename(scope, group?.name))
     })
   }
 
@@ -51,22 +54,26 @@ export function LibraryTransfer({ scope }: { scope: LibraryScope }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="quiet" disabled={busy} onClick={exportLibrary}>
-        {copy.export}
+        {group ? "Exportar agrupación" : copy.export}
       </Button>
-      <Button variant="quiet" disabled={busy} onClick={() => fileRef.current?.click()}>
-        {copy.import}
-      </Button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".fagus"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          event.target.value = ""
-          if (file) importLibrary(file)
-        }}
-      />
+      {group ? null : (
+        <>
+          <Button variant="quiet" disabled={busy} onClick={() => fileRef.current?.click()}>
+            {copy.import}
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".fagus"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ""
+              if (file) importLibrary(file)
+            }}
+          />
+        </>
+      )}
       {transfer ? (
         <TransferDialog
           title={transfer.title}

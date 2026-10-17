@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { emptyPlate, emptySide, textStyle, type SideDocument } from "./document"
-import { includedLibraries, remapGroupId, remapSide, selectionForDesigns } from "./portable"
+import { includedLibraries, libraryFilename, remapGroupId, remapSide, selectionForDesigns } from "./portable"
 
 function quoteSide(mode: "fixed" | "pool", quoteId: string | null, poolIds: string[]): SideDocument {
   return {
@@ -83,6 +83,12 @@ describe("library bundles", () => {
       photos: false,
     })
     expect(includedLibraries("all").photos).toBe(true)
+  })
+
+  it("names a section file and a single grouping file", () => {
+    expect(libraryFilename("quotes")).toBe("citas.fagus")
+    expect(libraryFilename("quotes", "Adviento")).toBe("citas-adviento.fagus")
+    expect(libraryFilename("photos", "  ")).toBe("fotos-agrupacion.fagus")
   })
 
   it("rewrites a group id and drops one that did not travel", () => {

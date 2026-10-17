@@ -309,6 +309,7 @@ function GroupName({
       <Button type="submit" variant="quiet" disabled={name.trim().length === 0 || name === group.name}>
         Guardar nombre
       </Button>
+      <LibraryTransfer scope="photos" group={group} />
       <ConfirmButton label="Disolver" question="Las fotos pasan a Sin agrupar." pending={pending} onConfirm={onDissolve} />
     </form>
   )

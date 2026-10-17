@@ -4,7 +4,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { parseSideDocument, type SideDocument } from "../domain/document"
-import { includedLibraries, remapGroupId, remapSide, selectionForDesigns, type IdMaps, type LibraryScope } from "../domain/portable"
+import { includedLibraries, libraryFilename, remapGroupId, remapSide, selectionForDesigns, type IdMaps, type LibraryScope } from "../domain/portable"
 import { db, now } from "./db"
 import { bibleGroups, bibleTexts, designs, identities, identityGroups, photoGroups, photos, projects, quoteGroups, quotes } from "./schema"
 
@@ -336,26 +336,19 @@ function freshIds(ids: string[]): Map<string, string> {
   return map
 }
 
-const FILENAMES: Record<LibraryScope, string> = {
-  all: "bibliotecas.fagus",
-  quotes: "citas.fagus",
-  bible: "textos.fagus",
-  identities: "identidad.fagus",
-  photos: "fotos.fagus",
-}
-
-export function exportLibrary(scope: LibraryScope): { bytes: Buffer; filename: string } {
+export function exportLibrary(scope: LibraryScope, group?: { id: string; name: string }): { bytes: Buffer; filename: string } {
   const include = includedLibraries(scope)
+  const groupId = group?.id
   const filePath = path.join(os.tmpdir(), `fagus-${crypto.randomUUID()}.fagus`)
   const bundle = new Database(filePath)
   try {
     bundle.exec(librarySchema())
     const insert = bundle.transaction(() => {
       bundle.prepare("INSERT INTO bundle_meta (version, kind, scope) VALUES (?, ?, ?)").run(FORMAT_VERSION, "library", scope)
-      if (include.quotes) writeQuotes(bundle)
-      if (include.bible) writeBible(bundle)
-      if (include.identities) writeIdentities(bundle)
-      if (include.photos) writePhotos(bundle)
+      if (include.quotes) writeQuotes(bundle, groupId)
+      if (include.bible) writeBible(bundle, groupId)
+      if (include.identities) writeIdentities(bundle, groupId)
+      if (include.photos) writePhotos(bundle, groupId)
     })
     insert()
   } finally {
@@ -363,7 +356,7 @@ export function exportLibrary(scope: LibraryScope): { bytes: Buffer; filename: s
   }
   const bytes = fs.readFileSync(filePath)
   fs.unlinkSync(filePath)
-  return { bytes, filename: FILENAMES[scope] }
+  return { bytes, filename: libraryFilename(scope, group?.name) }
 }
 
 export function importLibrary(bytes: Buffer, expected: LibraryScope): void {
@@ -490,42 +483,62 @@ export function importLibrary(bytes: Buffer, expected: LibraryScope): void {
   }
 }
 
-function writeQuotes(bundle: Database.Database) {
+function writeQuotes(bundle: Database.Database, groupId?: string) {
   const groups = bundle.prepare("INSERT INTO quote_group (id, name) VALUES (?, ?)")
-  for (const row of db.select().from(quoteGroups).all()) groups.run(row.id, row.name)
+  const groupRows = groupId
+    ? db.select().from(quoteGroups).where(eq(quoteGroups.id, groupId)).all()
+    : db.select().from(quoteGroups).all()
+  for (const row of groupRows) groups.run(row.id, row.name)
   const items = bundle.prepare("INSERT INTO quote (id, group_id, body, attribution) VALUES (?, ?, ?, ?)")
-  for (const row of db.select().from(quotes).all()) items.run(row.id, row.groupId, row.body, row.attribution)
+  const itemRows = groupId ? db.select().from(quotes).where(eq(quotes.groupId, groupId)).all() : db.select().from(quotes).all()
+  for (const row of itemRows) items.run(row.id, row.groupId, row.body, row.attribution)
 }
 
-function writeBible(bundle: Database.Database) {
+function writeBible(bundle: Database.Database, groupId?: string) {
   const groups = bundle.prepare("INSERT INTO bible_group (id, name) VALUES (?, ?)")
-  for (const row of db.select().from(bibleGroups).all()) groups.run(row.id, row.name)
+  const groupRows = groupId
+    ? db.select().from(bibleGroups).where(eq(bibleGroups.id, groupId)).all()
+    : db.select().from(bibleGroups).all()
+  for (const row of groupRows) groups.run(row.id, row.name)
   const items = bundle.prepare(
     "INSERT INTO bible_text (id, group_id, book, chapter, verse_start, verse_end, body, translation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   )
-  for (const row of db.select().from(bibleTexts).all()) {
+  const itemRows = groupId
+    ? db.select().from(bibleTexts).where(eq(bibleTexts.groupId, groupId)).all()
+    : db.select().from(bibleTexts).all()
+  for (const row of itemRows) {
     items.run(row.id, row.groupId, row.book, row.chapter, row.verseStart, row.verseEnd, row.body, row.translation)
   }
 }
 
-function writeIdentities(bundle: Database.Database) {
+function writeIdentities(bundle: Database.Database, groupId?: string) {
   const groups = bundle.prepare("INSERT INTO identity_group (id, name) VALUES (?, ?)")
-  for (const row of db.select().from(identityGroups).all()) groups.run(row.id, row.name)
+  const groupRows = groupId
+    ? db.select().from(identityGroups).where(eq(identityGroups.id, groupId)).all()
+    : db.select().from(identityGroups).all()
+  for (const row of groupRows) groups.run(row.id, row.name)
   const items = bundle.prepare(
     "INSERT INTO identity (id, group_id, kind, name, text, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
-  for (const row of db.select().from(identities).all()) {
+  const itemRows = groupId
+    ? db.select().from(identities).where(eq(identities.groupId, groupId)).all()
+    : db.select().from(identities).all()
+  for (const row of itemRows) {
     items.run(row.id, row.groupId, row.kind, row.name, row.text, row.mime, row.widthPx, row.heightPx, row.thumbnail, row.bytes)
   }
 }
 
-function writePhotos(bundle: Database.Database) {
+function writePhotos(bundle: Database.Database, groupId?: string) {
   const groups = bundle.prepare("INSERT INTO photo_group (id, name) VALUES (?, ?)")
-  for (const row of db.select().from(photoGroups).all()) groups.run(row.id, row.name)
+  const groupRows = groupId
+    ? db.select().from(photoGroups).where(eq(photoGroups.id, groupId)).all()
+    : db.select().from(photoGroups).all()
+  for (const row of groupRows) groups.run(row.id, row.name)
   const items = bundle.prepare(
     "INSERT INTO photo (id, group_id, name, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   )
-  for (const row of db.select().from(photos).all()) {
+  const itemRows = groupId ? db.select().from(photos).where(eq(photos.groupId, groupId)).all() : db.select().from(photos).all()
+  for (const row of itemRows) {
     items.run(row.id, row.groupId, row.name, row.mime, row.widthPx, row.heightPx, row.thumbnail, row.bytes)
   }
 }
