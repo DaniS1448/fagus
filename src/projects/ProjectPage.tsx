@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { ApiError, apiGet, apiJson } from "../api"
-import type { Design, Project } from "../domain/models"
+import type { BibleText, Design, Identity, Photo, Project, Quote } from "../domain/models"
+import type { LibrarySnapshot } from "../domain/resolve"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { downloadBlob, slugify } from "../media"
-import { Button, ButtonLink, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { Button, ButtonLink, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { DesignThumb, thumbBox, useDesignImages } from "./DesignThumb"
 
 export function ProjectPage() {
   const navigate = useNavigate()
@@ -19,6 +21,31 @@ export function ProjectPage() {
     queryKey: ["designs", projectId],
     queryFn: () => apiGet<Design[]>(`/api/projects/${projectId}/designs`),
   })
+  const quotes = useQuery({ queryKey: ["quotes"], queryFn: () => apiGet<Quote[]>("/api/quotes") })
+  const bible = useQuery({ queryKey: ["bible"], queryFn: () => apiGet<BibleText[]>("/api/bible-texts") })
+  const identities = useQuery({ queryKey: ["identities"], queryFn: () => apiGet<Identity[]>("/api/identities") })
+  const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
+  const libraries = useMemo<LibrarySnapshot>(
+    () => ({
+      quotes: quotes.data ?? [],
+      bibleTexts: bible.data ?? [],
+      identities: (identities.data ?? []).map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        name: item.name,
+        text: item.text,
+        widthPx: item.widthPx,
+        heightPx: item.heightPx,
+      })),
+      photos: (photos.data ?? []).map((photo) => ({
+        id: photo.id,
+        widthPx: photo.widthPx,
+        heightPx: photo.heightPx,
+      })),
+    }),
+    [quotes.data, bible.data, identities.data, photos.data],
+  )
+  const images = useDesignImages(designs.data, identities.data)
   const [name, setName] = useState("Marcapáginas")
   const [widthMm, setWidthMm] = useState(DEFAULT_WIDTH_MM)
   const [heightMm, setHeightMm] = useState(DEFAULT_HEIGHT_MM)
@@ -160,18 +187,37 @@ export function ProjectPage() {
             Crea uno y ábrelo para colocar la foto, el texto y la identidad.
           </EmptyState>
         ) : null}
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {designs.data?.map((design) => (
-            <DesignCard key={design.id} design={design} projectId={projectId} />
-          ))}
-        </ul>
+        {designs.data && designs.data.length > 0 ? (
+          <ul className="cutting-mat flex w-fit max-w-full flex-wrap items-end gap-x-4 gap-y-5 px-4 py-4">
+            {designs.data.map((design) => (
+              <DesignCard
+                key={design.id}
+                design={design}
+                projectId={projectId}
+                libraries={libraries}
+                images={images}
+              />
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   )
 }
 
-function DesignCard({ design, projectId }: { design: Design; projectId: string }) {
+function DesignCard({
+  design,
+  projectId,
+  libraries,
+  images,
+}: {
+  design: Design
+  projectId: string
+  libraries: LibrarySnapshot
+  images: ReadonlyMap<string, HTMLImageElement>
+}) {
   const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
   const duplicate = useMutation({
     mutationFn: () => apiJson<Design>(`/api/designs/${design.id}/duplicate`, "POST"),
     onSuccess: async () => {
@@ -184,37 +230,70 @@ function DesignCard({ design, projectId }: { design: Design; projectId: string }
       await queryClient.invalidateQueries({ queryKey: ["designs", projectId] })
     },
   })
-  const ratio = design.heightMm / design.widthMm
+  const face = thumbBox(design.widthMm, design.heightMm)
+  const columnWidth = design.sides === "double" ? Math.max(148, face.width * 2 + 14) : 116
+  const href = `/projects/${projectId}/designs/${design.id}`
 
   return (
-    <li className="flex flex-col gap-4 border border-line bg-white/70 p-4">
-      <div className="flex items-start gap-4">
-        <div
-          className="w-10 shrink-0 bg-paper shadow"
-          style={{ height: `${Math.min(120, 40 * ratio)}px` }}
-          aria-hidden
+    <li
+      className="flex flex-col items-center text-center [content-visibility:auto]"
+      style={{ width: columnWidth, containIntrinsicSize: `${columnWidth}px 232px` }}
+    >
+      <Link to={href} className="flex h-[10.5rem] items-end justify-center gap-1" aria-label={`Abrir ${design.name}`}>
+        <DesignThumb
+          side={design.front}
+          widthMm={design.widthMm}
+          heightMm={design.heightMm}
+          seed={design.seed}
+          libraries={libraries}
+          images={images}
         />
-        <div>
-        <Link to={`/projects/${projectId}/designs/${design.id}`} className="text-lg">
-          {design.name}
-        </Link>
-          <p className="text-sm text-bark/60">
-            {formatMm(design.widthMm)} × {formatMm(design.heightMm)} mm · {design.sides === "double" ? "Dos caras" : "Una cara"}
-          </p>
+        {design.sides === "double" ? (
+          <DesignThumb
+            side={design.back}
+            widthMm={design.widthMm}
+            heightMm={design.heightMm}
+            seed={design.seed}
+            libraries={libraries}
+            images={images}
+          />
+        ) : null}
+      </Link>
+      <Link to={href} className="mt-2 w-full truncate text-sm" title={design.name}>
+        {design.name}
+      </Link>
+      <p className="text-xs text-bark/60">
+        {formatMm(design.widthMm)} × {formatMm(design.heightMm)} mm
+        <br />
+        {design.sides === "double" ? "Dos caras" : "Una cara"}
+      </p>
+      {confirming ? (
+        <div className="mt-1 flex flex-col items-center gap-1">
+          <span className="text-xs">¿Borrar «{design.name}»?</span>
+          <span className="flex gap-2">
+            <button
+              type="button"
+              className="text-xs text-mark disabled:opacity-40"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              Borrar
+            </button>
+            <button type="button" className="text-xs" onClick={() => setConfirming(false)}>
+              Cancelar
+            </button>
+          </span>
         </div>
-      </div>
-      <div className="mt-auto flex flex-wrap gap-2">
-        <ButtonLink to={`/projects/${projectId}/designs/${design.id}`}>Abrir editor</ButtonLink>
-        <Button variant="quiet" onClick={() => duplicate.mutate()}>
-          Duplicar
-        </Button>
-        <ConfirmButton
-          label="Borrar"
-          question={`¿Borrar «${design.name}»?`}
-          pending={remove.isPending}
-          onConfirm={() => remove.mutate()}
-        />
-      </div>
+      ) : (
+        <div className="mt-1 flex gap-2 text-xs">
+          <button type="button" className="disabled:opacity-40" disabled={duplicate.isPending} onClick={() => duplicate.mutate()}>
+            Duplicar
+          </button>
+          <button type="button" className="text-mark" onClick={() => setConfirming(true)}>
+            Borrar
+          </button>
+        </div>
+      )}
     </li>
   )
 }
