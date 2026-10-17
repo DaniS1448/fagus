@@ -83,10 +83,10 @@ function paintElement(
       paintRaster(group, element.photoId, element, width, height, images)
       break
     case "quote":
-      paintQuote(group, element, width, pxPerMm)
+      paintQuote(group, element, width, height, pxPerMm)
       break
     case "bible":
-      paintBible(group, element, width, pxPerMm)
+      paintBible(group, element, width, height, pxPerMm)
       break
     case "identity":
       paintIdentity(group, element, width, height, pxPerMm, images)
@@ -137,47 +137,53 @@ function paintQuote(
   group: Konva.Group,
   element: Extract<ResolvedElement, { type: "quote" }>,
   width: number,
+  height: number,
   pxPerMm: number,
 ) {
-  const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
+  const pad = padsOf(element.plate, pxPerMm, width)
+  const innerWidth = Math.max(1, width - pad.left - pad.right)
+  const body = addFlowingText(group, element.text, element.style, pad.left, pad.top, innerWidth, pxPerMm)
   const attribution = attributionLine(element.attribution)
-  let bottom = body.height()
+  let contentBottom = pad.top + body.height()
   if (attribution) {
     const line = addFlowingText(
       group,
       attribution,
       { ...element.style, fontSizeMm: element.style.fontSizeMm * 0.78 },
-      0,
-      body.height() + element.gapMm * pxPerMm,
-      width,
+      pad.left,
+      contentBottom + element.gapMm * pxPerMm,
+      innerWidth,
       pxPerMm,
     )
-    bottom = line.y() + line.height()
+    contentBottom = line.y() + line.height()
   }
-  paintPlate(group, element.plate, 0, 0, width, bottom, pxPerMm)
+  paintPlate(group, element.plate, 0, 0, width, Math.min(height, contentBottom + pad.bottom), pxPerMm)
 }
 
 function paintBible(
   group: Konva.Group,
   element: Extract<ResolvedElement, { type: "bible" }>,
   width: number,
+  height: number,
   pxPerMm: number,
 ) {
-  const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
-  let bottom = body.height()
+  const pad = padsOf(element.plate, pxPerMm, width)
+  const innerWidth = Math.max(1, width - pad.left - pad.right)
+  const body = addFlowingText(group, element.text, element.style, pad.left, pad.top, innerWidth, pxPerMm)
+  let contentBottom = pad.top + body.height()
   if (element.showReference && element.reference) {
     const line = addFlowingText(
       group,
       element.reference,
       element.referenceStyle,
-      0,
-      body.height() + element.gapMm * pxPerMm,
-      width,
+      pad.left,
+      contentBottom + element.gapMm * pxPerMm,
+      innerWidth,
       pxPerMm,
     )
-    bottom = line.y() + line.height()
+    contentBottom = line.y() + line.height()
   }
-  paintPlate(group, element.plate, 0, 0, width, bottom, pxPerMm)
+  paintPlate(group, element.plate, 0, 0, width, Math.min(height, contentBottom + pad.bottom), pxPerMm)
 }
 
 function paintIdentity(
@@ -201,16 +207,25 @@ function paintIdentity(
         offsetX: element.offsetX,
         offsetY: element.offsetY,
       })
-      paintPlate(group, element.plate, placed.x, placed.y, placed.width, placed.height, pxPerMm)
+      const pad = padsOf(element.plate, pxPerMm, width)
+      const x = Math.max(0, placed.x - pad.left)
+      const y = Math.max(0, placed.y - pad.top)
+      const right = Math.min(width, placed.x + placed.width + pad.right)
+      const bottom = Math.min(height, placed.y + placed.height + pad.bottom)
+      paintPlate(group, element.plate, x, y, right - x, bottom - y, pxPerMm)
     }
     paintRaster(group, element.imageId, element, width, height, images)
     return
   }
   if (element.kind === "missing") return
-  const text = addText(group, element.text, element.style, 0, 0, width, height, pxPerMm)
+  const pad = padsOf(element.plate, pxPerMm, width)
+  const innerWidth = Math.max(1, width - pad.left - pad.right)
+  const text = addFlowingText(group, element.text, element.style, pad.left, 0, innerWidth, pxPerMm)
   const used = text.height()
-  text.y(Math.max(0, (height - used) / 2))
-  paintPlate(group, element.plate, 0, text.y(), width, used, pxPerMm)
+  const block = Math.min(height, used + pad.top + pad.bottom)
+  const top = Math.max(0, (height - block) / 2)
+  text.y(top + pad.top)
+  paintPlate(group, element.plate, 0, top, width, block, pxPerMm)
 }
 
 function addFlowingText(
@@ -241,42 +256,29 @@ function addFlowingText(
   return text
 }
 
-function addText(
-  group: Konva.Group,
-  value: string,
-  style: TextStyle,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  pxPerMm: number,
-): Konva.Text {
-  const text = new Konva.Text({
-    text: value,
-    x,
-    y,
-    width,
-    height,
-    fontFamily: fontLabel(style.fontFamily),
-    fontSize: style.fontSizeMm * pxPerMm,
-    lineHeight: style.lineHeight,
-    align: style.align,
-    fill: style.color,
-    letterSpacing: style.letterSpacingMm * pxPerMm,
-    wrap: "word",
-    listening: false,
-    ...strokeOf(style, pxPerMm),
-  })
-  group.add(text)
-  return text
-}
-
 function strokeOf(style: TextStyle, pxPerMm: number): { stroke?: string; strokeWidth?: number; fillAfterStrokeEnabled?: boolean } {
   if (!style.strokeColor || style.strokeWidthMm <= 0) return {}
   return {
     stroke: style.strokeColor,
     strokeWidth: style.strokeWidthMm * pxPerMm,
     fillAfterStrokeEnabled: true,
+  }
+}
+
+function padsOf(plate: Plate, pxPerMm: number, width: number) {
+  let left = Math.max(0, plate.paddingLeftMm) * pxPerMm
+  let right = Math.max(0, plate.paddingRightMm) * pxPerMm
+  const span = left + right
+  if (span > width && span > 0) {
+    const scale = width / span
+    left *= scale
+    right *= scale
+  }
+  return {
+    top: Math.max(0, plate.paddingTopMm) * pxPerMm,
+    right,
+    bottom: Math.max(0, plate.paddingBottomMm) * pxPerMm,
+    left,
   }
 }
 
@@ -290,12 +292,13 @@ function paintPlate(
   pxPerMm: number,
 ) {
   if (!plate?.color || plate.opacity <= 0 || width <= 0 || height <= 0) return
-  const pad = plate.paddingMm * pxPerMm
+  const radius = Math.min(Math.max(0, plate.radiusMm) * pxPerMm, width / 2, height / 2)
   const rect = new Konva.Rect({
-    x: x - pad,
-    y: y - pad,
-    width: width + pad * 2,
-    height: height + pad * 2,
+    x,
+    y,
+    width,
+    height,
+    cornerRadius: radius,
     fill: plate.color,
     opacity: plate.opacity,
     listening: false,

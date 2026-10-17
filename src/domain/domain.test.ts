@@ -400,8 +400,69 @@ describe("parseSideDocument", () => {
     if (element?.type !== "bible") throw new Error("shape")
     expect(element.gapMm).toBe(2)
     expect(element.plate.color).toBeNull()
+    expect(element.plate.paddingTopMm).toBe(1.5)
+    expect(element.plate.radiusMm).toBe(0)
     expect(element.style.strokeColor).toBeNull()
     expect(element.style.strokeWidthMm).toBe(0)
     expect(parsed.elements).toHaveLength(1)
+  })
+
+  it("keeps each plate margin and turns an older single margin into four", () => {
+    const parsed = parseSideDocument({
+      background: "#F4F0E6",
+      elements: [
+        {
+          id: "el-3",
+          type: "bible",
+          mode: "fixed",
+          bibleTextId: "b1",
+          poolIds: [],
+          showReference: true,
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 80,
+          rotation: 0,
+          style: textStyle(),
+          referenceStyle: textStyle(),
+          plate: { color: "#112233", opacity: 0.8, paddingMm: 2.2 },
+        },
+        {
+          id: "el-4",
+          type: "quote",
+          mode: "fixed",
+          quoteId: "q-a",
+          poolIds: [],
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 40,
+          rotation: 0,
+          style: textStyle(),
+          plate: {
+            color: "#AABBCC",
+            opacity: 1,
+            paddingTopMm: 1,
+            paddingRightMm: 2,
+            paddingBottomMm: 3,
+            paddingLeftMm: 4,
+            radiusMm: 2.5,
+          },
+        },
+      ],
+    })
+    const older = parsed.elements[0]
+    const newer = parsed.elements[1]
+    if (older?.type !== "bible" || newer?.type !== "quote") throw new Error("shape")
+    expect(older.plate.paddingTopMm).toBe(2.2)
+    expect(older.plate.paddingRightMm).toBe(2.2)
+    expect(older.plate.paddingBottomMm).toBe(2.2)
+    expect(older.plate.paddingLeftMm).toBe(2.2)
+    expect(older.plate.radiusMm).toBe(0)
+    expect(newer.plate.paddingTopMm).toBe(1)
+    expect(newer.plate.paddingRightMm).toBe(2)
+    expect(newer.plate.paddingBottomMm).toBe(3)
+    expect(newer.plate.paddingLeftMm).toBe(4)
+    expect(newer.plate.radiusMm).toBe(2.5)
   })
 })

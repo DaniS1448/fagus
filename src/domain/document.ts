@@ -33,18 +33,44 @@ export const textStyleSchema = z.object({
 
 export type TextStyle = z.infer<typeof textStyleSchema>
 
-export const plateSchema = z
-  .object({
-    color: optionalHex.default(null),
-    opacity: clamped(1, 0, 1),
-    paddingMm: clamped(1.5, 0, 8),
-  })
-  .default({ color: null, opacity: 1, paddingMm: 1.5 })
+const plateObject = z.object({
+  color: optionalHex.default(null),
+  opacity: clamped(1, 0, 1),
+  paddingTopMm: clamped(1.5, 0, 30),
+  paddingRightMm: clamped(1.5, 0, 30),
+  paddingBottomMm: clamped(1.5, 0, 30),
+  paddingLeftMm: clamped(1.5, 0, 30),
+  radiusMm: clamped(0, 0, 30),
+})
+
+const emptyPlateValue = {
+  color: null,
+  opacity: 1,
+  paddingTopMm: 1.5,
+  paddingRightMm: 1.5,
+  paddingBottomMm: 1.5,
+  paddingLeftMm: 1.5,
+  radiusMm: 0,
+}
+
+export const plateSchema = z.preprocess((value) => {
+  if (value == null || typeof value !== "object") return value
+  const plate = value as Record<string, unknown>
+  const shared = typeof plate.paddingMm === "number" ? plate.paddingMm : undefined
+  if (shared == null) return plate
+  return {
+    ...plate,
+    paddingTopMm: plate.paddingTopMm ?? shared,
+    paddingRightMm: plate.paddingRightMm ?? shared,
+    paddingBottomMm: plate.paddingBottomMm ?? shared,
+    paddingLeftMm: plate.paddingLeftMm ?? shared,
+  }
+}, plateObject.default(emptyPlateValue))
 
 export type Plate = z.infer<typeof plateSchema>
 
 export function emptyPlate(): Plate {
-  return { color: null, opacity: 1, paddingMm: 1.5 }
+  return { ...emptyPlateValue }
 }
 
 const frameFields = {

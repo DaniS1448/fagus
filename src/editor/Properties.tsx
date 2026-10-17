@@ -498,12 +498,53 @@ function PlateFields({
             begin={begin}
             end={end}
           />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm">Margen (mm)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField
+                label="Arriba"
+                value={current.paddingTopMm}
+                min={0}
+                max={30}
+                onChange={(paddingTopMm) => onChange({ ...current, paddingTopMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Derecha"
+                value={current.paddingRightMm}
+                min={0}
+                max={30}
+                onChange={(paddingRightMm) => onChange({ ...current, paddingRightMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Abajo"
+                value={current.paddingBottomMm}
+                min={0}
+                max={30}
+                onChange={(paddingBottomMm) => onChange({ ...current, paddingBottomMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Izquierda"
+                value={current.paddingLeftMm}
+                min={0}
+                max={30}
+                onChange={(paddingLeftMm) => onChange({ ...current, paddingLeftMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+            </div>
+          </div>
           <NumberField
-            label="Margen (mm)"
-            value={current.paddingMm}
+            label="Redondeo (mm)"
+            value={current.radiusMm}
             min={0}
-            max={8}
-            onChange={(paddingMm) => onChange({ ...current, paddingMm }, "live")}
+            max={30}
+            onChange={(radiusMm) => onChange({ ...current, radiusMm }, "live")}
             begin={begin}
             end={end}
           />
