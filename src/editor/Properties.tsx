@@ -277,13 +277,13 @@ function ElementFields({
             >
               {libraries.identities.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.kind === "logo" ? `${item.name} (logo)` : item.text}
+                  {identityOptionLabel(item)}
                 </option>
               ))}
             </Select>
           </Field>
           <PlateFields plate={element.plate} onChange={(plate, mode) => onPatch(() => ({ ...element, plate }), mode)} begin={begin} end={end} />
-          {current?.kind === "logo" ? (
+          {current && identityUsesFit(current.kind) ? (
             <FitFields element={element} onPatch={onPatch} begin={begin} end={end} />
           ) : (
             <StyleFields style={element.style} onChange={(style, mode) => onPatch(() => ({ ...element, style }), mode)} begin={begin} end={end} />
@@ -637,4 +637,33 @@ function Range({
 
 function round(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+function identityOptionLabel(item: Identity): string {
+  switch (item.kind) {
+    case "logo":
+      return `${item.name} (logo)`
+    case "wordmark":
+      return item.text
+    case "lockup":
+      return `${item.name} (logo y título)`
+    default: {
+      const unknown: never = item.kind
+      return unknown
+    }
+  }
+}
+
+function identityUsesFit(kind: Identity["kind"]): boolean {
+  switch (kind) {
+    case "logo":
+      return true
+    case "wordmark":
+    case "lockup":
+      return false
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
 }

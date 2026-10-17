@@ -36,6 +36,7 @@ const libraries: LibrarySnapshot = {
     {
       id: "word",
       kind: "wordmark",
+      layout: null,
       name: "Emaus 2027",
       text: "Emaus 2027",
       widthPx: null,
@@ -44,10 +45,20 @@ const libraries: LibrarySnapshot = {
     {
       id: "logo",
       kind: "logo",
+      layout: null,
       name: "Logo",
       text: "",
       widthPx: 400,
       heightPx: 400,
+    },
+    {
+      id: "lock",
+      kind: "lockup",
+      layout: "row",
+      name: "Emaus",
+      text: "Emaus",
+      widthPx: 200,
+      heightPx: 200,
     },
   ],
   photos: [{ id: "photo-1", widthPx: 1200, heightPx: 800 }],
@@ -199,6 +210,41 @@ describe("resolveDocument", () => {
     expect(missing.kind).toBe("missing")
     expect(missing.broken).toBe(true)
     expect(side.broken).toBe(true)
+  })
+
+  it("resolves a lockup with its text, image, and layout", () => {
+    const side = resolveDocument(
+      {
+        ...emptySide(),
+        elements: [
+          {
+            id: "id-lock",
+            type: "identity",
+            identityId: "lock",
+            x: 1,
+            y: 2,
+            width: 40,
+            height: 16,
+            rotation: 0,
+            fit: "contain",
+            scale: 1,
+            offsetX: 0,
+            offsetY: 0,
+            style: textStyle(),
+            plate: emptyPlate(),
+          },
+        ],
+      },
+      libraries,
+      4,
+    )
+    const lock = side.elements[0]
+    if (lock?.type !== "identity") throw new Error("shape")
+    expect(lock.kind).toBe("lockup")
+    expect(lock.text).toBe("Emaus")
+    expect(lock.imageId).toBe("lock")
+    expect(lock.layout).toBe("row")
+    expect(lock.broken).toBe(false)
   })
 })
 

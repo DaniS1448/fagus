@@ -78,6 +78,7 @@ export function PrintPage() {
       identities: (identities.data ?? []).map((item) => ({
         id: item.id,
         kind: item.kind,
+        layout: item.layout,
         name: item.name,
         text: item.text,
         widthPx: item.widthPx,

@@ -47,6 +47,7 @@ export function AddPicker({
   onCreateBible,
   onCreateWordmark,
   onCreateLogo,
+  onCreateLockup,
 }: {
   libraries: Libraries
   onClose: () => void
@@ -59,6 +60,7 @@ export function AddPicker({
   onCreateBible: () => void
   onCreateWordmark: () => void
   onCreateLogo: () => void
+  onCreateLockup: () => void
 }) {
   const [filter, setFilter] = useState<Filter>("all")
   const [query, setQuery] = useState("")
@@ -125,6 +127,7 @@ export function AddPicker({
               onCreateBible={onCreateBible}
               onCreateWordmark={onCreateWordmark}
               onCreateLogo={onCreateLogo}
+              onCreateLockup={onCreateLockup}
               onQuote={() => onQuote(null)}
               onBible={() => onBible(null)}
             />
@@ -161,6 +164,7 @@ function KindActions({
   onCreateBible,
   onCreateWordmark,
   onCreateLogo,
+  onCreateLockup,
   onQuote,
   onBible,
 }: {
@@ -170,6 +174,7 @@ function KindActions({
   onCreateBible: () => void
   onCreateWordmark: () => void
   onCreateLogo: () => void
+  onCreateLockup: () => void
   onQuote: () => void
   onBible: () => void
 }) {
@@ -210,6 +215,9 @@ function KindActions({
           </Button>
           <Button variant="quiet" onClick={onCreateLogo}>
             Subir logo
+          </Button>
+          <Button variant="quiet" onClick={onCreateLockup}>
+            Logo y título
           </Button>
         </>
       )
@@ -456,9 +464,9 @@ function itemsFor(kind: MarkKind, libraries: Libraries): PickerItem[] {
         id: item.id,
         kind,
         groupId: item.groupId,
-        label: item.kind === "logo" ? item.name : item.text,
+        label: identityPickerLabel(item),
         detail: groupLabel(libraries.identityGroups, item.groupId, libraries.identities),
-        haystack: fold(`${item.name} ${item.text} ${nameOf(libraries.identityGroups, item.groupId)}`),
+        haystack: fold(`${item.name} ${item.text} ${identityPickerSearch(item.kind)} ${nameOf(libraries.identityGroups, item.groupId)}`),
       }))
     default: {
       const unknown: never = kind
@@ -507,6 +515,36 @@ function kindTitle(kind: MarkKind): string {
       return "Textos bíblicos"
     case "identity":
       return "Identidad"
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function identityPickerLabel(item: Identity): string {
+  switch (item.kind) {
+    case "logo":
+      return item.name
+    case "wordmark":
+      return item.text
+    case "lockup":
+      return `${item.name} (logo y título)`
+    default: {
+      const unknown: never = item.kind
+      return unknown
+    }
+  }
+}
+
+function identityPickerSearch(kind: Identity["kind"]): string {
+  switch (kind) {
+    case "logo":
+      return "logo"
+    case "wordmark":
+      return "título"
+    case "lockup":
+      return "logo y título"
     default: {
       const unknown: never = kind
       return unknown

@@ -14,6 +14,8 @@ import {
   bibleInputSchema,
   designCreateSchema,
   designPatchSchema,
+  identityLockupFileSchema,
+  identityLockupSchema,
   identityLogoPatchSchema,
   identityWordmarkSchema,
   itemBulkSchema,
@@ -436,6 +438,7 @@ export function createApp(): Hono {
         id: identities.id,
         groupId: identities.groupId,
         kind: identities.kind,
+        layout: identities.layout,
         name: identities.name,
         text: identities.text,
         mime: identities.mime,
@@ -460,6 +463,7 @@ export function createApp(): Hono {
         id: crypto.randomUUID(),
         groupId: parsed.data.groupId ?? null,
         kind: "wordmark" as const,
+        layout: null,
         name: parsed.data.name,
         text: parsed.data.text,
         mime: null,
@@ -478,10 +482,32 @@ export function createApp(): Hono {
     if (image instanceof Response) return image
     if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const timestamp = now()
+    if (image.kind === "lockup") {
+      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout })
+      if (!parsed.success) return invalid(c, parsed.error)
+      const row = {
+        id: crypto.randomUUID(),
+        groupId: image.groupId,
+        kind: "lockup" as const,
+        layout: parsed.data.layout,
+        name: image.name,
+        text: parsed.data.text,
+        mime: image.mime,
+        widthPx: image.widthPx,
+        heightPx: image.heightPx,
+        thumbnail: image.thumbnail,
+        bytes: image.bytes,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }
+      db.insert(identities).values(row).run()
+      return c.json(toIdentity(row), 201)
+    }
     const row = {
       id: crypto.randomUUID(),
       groupId: image.groupId,
       kind: "logo" as const,
+      layout: null,
       name: image.name,
       text: "",
       mime: image.mime,
@@ -502,36 +528,78 @@ export function createApp(): Hono {
     const contentType = c.req.header("content-type") ?? ""
     if (contentType.includes("application/json")) {
       const body = await readJson(c)
-      if (current.kind === "wordmark") {
-        const parsed = identityWordmarkSchema.safeParse(body)
-        if (!parsed.success) return invalid(c, parsed.error)
-        if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
-        const updatedAt = now()
-        const next = {
-          name: parsed.data.name,
-          text: parsed.data.text,
-          groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
-          updatedAt,
+      const kind = storedIdentityKind(current.kind)
+      switch (kind) {
+        case "wordmark": {
+          const parsed = identityWordmarkSchema.safeParse(body)
+          if (!parsed.success) return invalid(c, parsed.error)
+          if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
+          const updatedAt = now()
+          const next = {
+            name: parsed.data.name,
+            text: parsed.data.text,
+            groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+            updatedAt,
+          }
+          db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+          return c.json(toIdentity({ ...current, ...next }))
         }
-        db.update(identities).set(next).where(eq(identities.id, current.id)).run()
-        return c.json(toIdentity({ ...current, ...next }))
+        case "lockup": {
+          const parsed = identityLockupSchema.safeParse(body)
+          if (!parsed.success) return invalid(c, parsed.error)
+          if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
+          const updatedAt = now()
+          const next = {
+            name: parsed.data.name,
+            text: parsed.data.text,
+            layout: parsed.data.layout,
+            groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+            updatedAt,
+          }
+          db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+          return c.json(toIdentity({ ...current, ...next }))
+        }
+        case "logo": {
+          const parsed = identityLogoPatchSchema.safeParse(body)
+          if (!parsed.success) return invalid(c, parsed.error)
+          if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
+          const updatedAt = now()
+          const next = {
+            name: parsed.data.name,
+            groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
+            updatedAt,
+          }
+          db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+          return c.json(toIdentity({ ...current, ...next }))
+        }
+        default: {
+          const unknown: never = kind
+          return unknown
+        }
       }
-      const parsed = identityLogoPatchSchema.safeParse(body)
-      if (!parsed.success) return invalid(c, parsed.error)
-      if (parsed.data.groupId && !groupRow("identities", parsed.data.groupId)) return missing(c, "Agrupación")
-      const updatedAt = now()
-      const next = {
-        name: parsed.data.name,
-        groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
-        updatedAt,
-      }
-      db.update(identities).set(next).where(eq(identities.id, current.id)).run()
-      return c.json(toIdentity({ ...current, ...next }))
     }
     const image = await readImageForm(c)
     if (image instanceof Response) return image
     if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const updatedAt = now()
+    if (storedIdentityKind(current.kind) === "lockup") {
+      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout })
+      if (!parsed.success) return invalid(c, parsed.error)
+      const next = {
+        name: image.name,
+        groupId: image.groupId,
+        text: parsed.data.text,
+        layout: parsed.data.layout,
+        mime: image.mime,
+        widthPx: image.widthPx,
+        heightPx: image.heightPx,
+        thumbnail: image.thumbnail,
+        bytes: image.bytes,
+        updatedAt,
+      }
+      db.update(identities).set(next).where(eq(identities.id, current.id)).run()
+      return c.json(toIdentity({ ...current, ...next }))
+    }
     db.update(identities)
       .set({
         name: image.name,
@@ -835,10 +903,16 @@ function groupExists(id: string): boolean {
   return Boolean(db.select({ id: photoGroups.id }).from(photoGroups).where(eq(photoGroups.id, id)).get())
 }
 
+function storedIdentityKind(kind: string): Identity["kind"] {
+  if (kind === "logo" || kind === "lockup") return kind
+  return "wordmark"
+}
+
 function toIdentity(row: {
   id: string
   groupId?: string | null
   kind: string
+  layout?: string | null
   name: string
   text: string
   mime: string | null
@@ -847,8 +921,9 @@ function toIdentity(row: {
   createdAt: number
   updatedAt: number
 }): Identity {
-  const kind = row.kind === "logo" ? "logo" : "wordmark"
-  return { ...row, groupId: row.groupId ?? null, kind }
+  const kind = storedIdentityKind(row.kind)
+  const layout = kind === "lockup" ? (row.layout === "row" ? "row" : "stack") : null
+  return { ...row, groupId: row.groupId ?? null, kind, layout }
 }
 
 function touchProject(projectId: string) {
@@ -889,6 +964,9 @@ type ImagePayload = {
   thumbnail: Buffer
   bytes: Buffer
   groupId: string | null
+  kind: string | null
+  text: string
+  layout: string | null
 }
 
 async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status?: number) => Response }): Promise<ImagePayload | Response> {
@@ -913,6 +991,9 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
   const name = nameValue || file.name.replace(/\.[^.]+$/, "") || "Imagen"
   if (name.length > 120) return c.json({ error: "El nombre es demasiado largo" }, 400)
   const groupValue = typeof body.groupId === "string" ? body.groupId.trim() : ""
+  const kindValue = typeof body.kind === "string" ? body.kind.trim() : ""
+  const textValue = typeof body.text === "string" ? body.text.trim() : ""
+  const layoutValue = typeof body.layout === "string" ? body.layout.trim() : ""
   return {
     name,
     mime: file.type,
@@ -921,6 +1002,9 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
     thumbnail: Buffer.from(await thumbnail.arrayBuffer()),
     bytes: Buffer.from(await file.arrayBuffer()),
     groupId: groupValue || null,
+    kind: kindValue || null,
+    text: textValue,
+    layout: layoutValue || null,
   }
 }
 

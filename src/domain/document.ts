@@ -252,32 +252,44 @@ export function createBibleElement(pageWidth: number, pageHeight: number): Bible
 
 export function createIdentityElement(
   identityId: string,
-  kind: "wordmark" | "logo",
+  kind: "wordmark" | "logo" | "lockup",
   pageWidth: number,
   pageHeight: number,
+  layout: "stack" | "row" | null = null,
 ): IdentityElement {
-  if (kind === "logo") {
-    const size = Math.min(16, pageWidth - 8)
-    return {
-      id: crypto.randomUUID(),
-      type: "identity",
-      identityId,
-      x: (pageWidth - size) / 2,
-      y: 6,
-      width: size,
-      height: size,
-      rotation: 0,
-      fit: "contain",
-      scale: 1,
-      offsetX: 0,
-      offsetY: 0,
-      style: textStyle({ fontFamily: "barlow-condensed", fontSizeMm: 3.2 }),
-      plate: emptyPlate(),
+  switch (kind) {
+    case "logo": {
+      const size = Math.min(16, pageWidth - 8)
+      return {
+        id: crypto.randomUUID(),
+        type: "identity",
+        identityId,
+        x: (pageWidth - size) / 2,
+        y: 6,
+        width: size,
+        height: size,
+        rotation: 0,
+        fit: "contain",
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        style: textStyle({ fontFamily: "barlow-condensed", fontSizeMm: 3.2 }),
+        plate: emptyPlate(),
+      }
+    }
+    case "wordmark":
+      return titleIdentityFrame(identityId, pageWidth, pageHeight, 14)
+    case "lockup":
+      return titleIdentityFrame(identityId, pageWidth, pageHeight, layout === "row" ? 16 : 28)
+    default: {
+      const unknown: never = kind
+      return unknown
     }
   }
+}
 
+function titleIdentityFrame(identityId: string, pageWidth: number, pageHeight: number, height: number): IdentityElement {
   const width = Math.max(12, pageWidth - 8)
-  const height = 14
   return {
     id: crypto.randomUUID(),
     type: "identity",

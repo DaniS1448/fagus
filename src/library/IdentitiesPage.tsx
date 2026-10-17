@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { ApiError, apiForm, apiGet, apiJson } from "../api"
-import type { Identity } from "../domain/models"
+import { identityHasImage, type Identity, type IdentityKind, type IdentityLayout } from "../domain/models"
 import { imageForm, prepareImage } from "../media"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
 import { PAGE_SIZE, usePagedList } from "../ui/page"
@@ -12,7 +12,7 @@ import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
 import { filterByQuery, listResetKey } from "./search"
 
-type IdentityDraft = { kind: "wordmark" | "logo"; name: string; text: string; groupId: string }
+type IdentityDraft = { kind: IdentityKind; name: string; text: string; layout: IdentityLayout; groupId: string }
 
 export function IdentitiesPage() {
   const queryClient = useQueryClient()
@@ -20,10 +20,10 @@ export function IdentitiesPage() {
   const [filter, setFilter] = useState<DrawerFilter>("all")
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string[]>([])
-  const [creating, setCreating] = useState<"wordmark" | "logo" | null>(null)
+  const [creating, setCreating] = useState<IdentityKind | null>(null)
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(identities.data ?? [], filter)
-  const matches = filterByQuery(visible, query, (item) => `${item.name} ${item.text} ${item.kind === "logo" ? "logo" : "título"}`)
+  const matches = filterByQuery(visible, query, (item) => `${item.name} ${item.text} ${kindSearch(item.kind)}`)
   const paged = usePagedList(matches, PAGE_SIZE.library, listResetKey(filter, query))
   const chosen = (identities.data ?? []).filter((item) => selected.includes(item.id))
   const single = chosen.length === 1 ? chosen[0] : null
@@ -35,7 +35,7 @@ export function IdentitiesPage() {
     setError(null)
   }
 
-  function begin(kind: "wordmark" | "logo") {
+  function begin(kind: IdentityKind) {
     setSelected([])
     setCreating(kind)
     setError(null)
@@ -44,22 +44,51 @@ export function IdentitiesPage() {
   const save = useMutation({
     mutationFn: async (input: { draft: IdentityDraft; file: File | null }) => {
       const groupId = input.draft.groupId === "none" ? null : input.draft.groupId
-      if (input.draft.kind === "wordmark") {
-        const payload = { kind: "wordmark" as const, name: input.draft.name, text: input.draft.text, groupId }
-        return single
-          ? apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", payload)
-          : apiJson<Identity>("/api/identities", "POST", payload)
+      switch (input.draft.kind) {
+        case "wordmark": {
+          const payload = { kind: "wordmark" as const, name: input.draft.name, text: input.draft.text, groupId }
+          return single
+            ? apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", payload)
+            : apiJson<Identity>("/api/identities", "POST", payload)
+        }
+        case "lockup": {
+          if (!input.file) {
+            if (!single) throw new ApiError("Elige el archivo del logo")
+            return apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", {
+              kind: "lockup" as const,
+              name: input.draft.name,
+              text: input.draft.text,
+              layout: input.draft.layout,
+              groupId,
+            })
+          }
+          const prepared = await prepareImage(input.file)
+          const body = imageForm(prepared, input.draft.name || input.file.name, groupId ?? undefined, {
+            kind: "lockup",
+            text: input.draft.text,
+            layout: input.draft.layout,
+          })
+          return single
+            ? apiForm<Identity>(`/api/identities/${single.id}`, "PATCH", body)
+            : apiForm<Identity>("/api/identities", "POST", body)
+        }
+        case "logo": {
+          if (!input.file && !single) throw new ApiError("Elige el archivo del logo")
+          if (!input.file && single) {
+            return apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", { name: input.draft.name, groupId })
+          }
+          if (!input.file) throw new ApiError("Elige el archivo del logo")
+          const prepared = await prepareImage(input.file)
+          const body = imageForm(prepared, input.draft.name || input.file.name, groupId ?? undefined)
+          return single
+            ? apiForm<Identity>(`/api/identities/${single.id}`, "PATCH", body)
+            : apiForm<Identity>("/api/identities", "POST", body)
+        }
+        default: {
+          const unknown: never = input.draft.kind
+          return unknown
+        }
       }
-      if (!input.file && !single) throw new ApiError("Elige el archivo del logo")
-      if (!input.file && single) {
-        return apiJson<Identity>(`/api/identities/${single.id}`, "PATCH", { name: input.draft.name, groupId })
-      }
-      if (!input.file) throw new ApiError("Elige el archivo del logo")
-      const prepared = await prepareImage(input.file)
-      const body = imageForm(prepared, input.draft.name || input.file.name, groupId ?? undefined)
-      return single
-        ? apiForm<Identity>(`/api/identities/${single.id}`, "PATCH", body)
-        : apiForm<Identity>("/api/identities", "POST", body)
     },
     onSuccess: async (item) => {
       setCreating(null)
@@ -80,13 +109,13 @@ export function IdentitiesPage() {
   })
 
   const initial: IdentityDraft = single
-    ? { kind: single.kind, name: single.name, text: single.text, groupId: single.groupId ?? "none" }
-    : { kind: mode, name: "", text: "", groupId: openGroupId(filter) ?? "none" }
+    ? { kind: single.kind, name: single.name, text: single.text, layout: single.layout ?? "stack", groupId: single.groupId ?? "none" }
+    : { kind: mode, name: "", text: "", layout: "stack", groupId: openGroupId(filter) ?? "none" }
 
   return (
     <LibraryScreen
       title="Identidad"
-      lede="Títulos cortos y logos de la iglesia. No entran en el sorteo: en el diseño se eligen y se quedan fijos."
+      lede="Títulos, logos y los dos juntos. No entran en el sorteo: en el diseño se eligen y se quedan fijos."
       actions={<LibraryTransfer scope="identities" />}
       list={
         <>
@@ -102,6 +131,9 @@ export function IdentitiesPage() {
             </Button>
             <Button variant="quiet" onClick={() => begin("logo")}>
               Nuevo logo
+            </Button>
+            <Button variant="quiet" onClick={() => begin("lockup")}>
+              Logo y título
             </Button>
           </div>
           {visible.length > 0 || query.trim().length > 0 ? (
@@ -139,14 +171,15 @@ export function IdentitiesPage() {
                     onClick={() => toggle(item.id)}
                     className={`flex w-full items-center gap-3 border px-4 py-3 text-left ${on ? "border-ink bg-white" : "border-line bg-white/40"}`}
                   >
-                    {item.kind === "logo" ? (
+                    {identityHasImage(item.kind) ? (
                       <img src={`/api/identities/${item.id}/thumbnail`} alt="" className="h-10 w-10 object-contain" />
                     ) : (
                       <span className="text-sm">{item.text}</span>
                     )}
                     <span>
                       <span className="block">{item.name}</span>
-                      <span className="text-sm text-bark/60">{item.kind === "logo" ? "Logo" : "Título"}</span>
+                      {item.kind === "lockup" ? <span className="block text-sm">{item.text}</span> : null}
+                      <span className="text-sm text-bark/60">{kindLabel(item.kind)}</span>
                     </span>
                   </button>
                 </li>
@@ -162,9 +195,9 @@ export function IdentitiesPage() {
         ) : (
           <IdentityForm
             key={single?.id ?? `new-${mode}-${openGroupId(filter) ?? "none"}`}
-            title={single ? "Editar identidad" : mode === "logo" ? "Nuevo logo" : "Nuevo título"}
+            title={single ? "Editar identidad" : formTitle(mode)}
             initial={initial}
-            previewId={single?.kind === "logo" ? single.id : null}
+            previewId={single && identityHasImage(single.kind) ? single.id : null}
             error={error}
             pending={save.isPending}
             onSubmit={(draft, file) => save.mutate({ draft, file })}
@@ -210,7 +243,7 @@ function IdentityForm({
       <Field label="Nombre en la biblioteca">
         <TextInput value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Emaus 2027" />
       </Field>
-      {draft.kind === "wordmark" ? (
+      {fieldsFor(draft.kind).text ? (
         <Field label="Título en el marcapáginas">
           <TextInput
             value={draft.text}
@@ -218,11 +251,30 @@ function IdentityForm({
             placeholder="Iglesia Adventista Emaus 2027"
           />
         </Field>
-      ) : (
+      ) : null}
+      {fieldsFor(draft.kind).layout ? (
+        <fieldset className="flex flex-col gap-2 text-sm">
+          <legend>Disposición</legend>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="layout"
+              checked={draft.layout === "stack"}
+              onChange={() => setDraft({ ...draft, layout: "stack" })}
+            />
+            Logo arriba, título debajo
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="layout" checked={draft.layout === "row"} onChange={() => setDraft({ ...draft, layout: "row" })} />
+            Logo a la izquierda, título a la derecha
+          </label>
+        </fieldset>
+      ) : null}
+      {fieldsFor(draft.kind).file ? (
         <Field label={previewId ? "Sustituir archivo" : "Archivo"}>
           <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         </Field>
-      )}
+      ) : null}
       {previewId ? <img src={`/api/identities/${previewId}/file`} alt="" className="max-h-40 object-contain" /> : null}
       <GroupField kind="identities" value={draft.groupId} onChange={(groupId) => setDraft({ ...draft, groupId })} />
       {error ? <Notice>{error}</Notice> : null}
@@ -236,4 +288,64 @@ function IdentityForm({
       </div>
     </form>
   )
+}
+
+function fieldsFor(kind: IdentityKind): { text: boolean; file: boolean; layout: boolean } {
+  switch (kind) {
+    case "wordmark":
+      return { text: true, file: false, layout: false }
+    case "logo":
+      return { text: false, file: true, layout: false }
+    case "lockup":
+      return { text: true, file: true, layout: true }
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function formTitle(kind: IdentityKind): string {
+  switch (kind) {
+    case "logo":
+      return "Nuevo logo"
+    case "wordmark":
+      return "Nuevo título"
+    case "lockup":
+      return "Logo y título"
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function kindLabel(kind: IdentityKind): string {
+  switch (kind) {
+    case "logo":
+      return "Logo"
+    case "wordmark":
+      return "Título"
+    case "lockup":
+      return "Logo y título"
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
+}
+
+function kindSearch(kind: IdentityKind): string {
+  switch (kind) {
+    case "logo":
+      return "logo"
+    case "wordmark":
+      return "título"
+    case "lockup":
+      return "logo y título"
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
 }

@@ -194,38 +194,118 @@ function paintIdentity(
   pxPerMm: number,
   images: ReadonlyMap<string, HTMLImageElement>,
 ) {
-  if (element.kind === "logo") {
-    const image = element.imageId ? images.get(element.imageId) : undefined
-    if (image) {
-      const placed = photoPlacement({
-        frameWidth: width,
-        frameHeight: height,
-        imageWidth: image.naturalWidth || element.imageWidth,
-        imageHeight: image.naturalHeight || element.imageHeight,
-        fit: element.fit,
-        scale: element.scale,
-        offsetX: element.offsetX,
-        offsetY: element.offsetY,
-      })
-      const pad = padsOf(element.plate, pxPerMm, width)
-      const x = Math.max(0, placed.x - pad.left)
-      const y = Math.max(0, placed.y - pad.top)
-      const right = Math.min(width, placed.x + placed.width + pad.right)
-      const bottom = Math.min(height, placed.y + placed.height + pad.bottom)
-      paintPlate(group, element.plate, x, y, right - x, bottom - y, pxPerMm)
+  switch (element.kind) {
+    case "logo": {
+      const image = element.imageId ? images.get(element.imageId) : undefined
+      if (image) {
+        const placed = photoPlacement({
+          frameWidth: width,
+          frameHeight: height,
+          imageWidth: image.naturalWidth || element.imageWidth,
+          imageHeight: image.naturalHeight || element.imageHeight,
+          fit: element.fit,
+          scale: element.scale,
+          offsetX: element.offsetX,
+          offsetY: element.offsetY,
+        })
+        const pad = padsOf(element.plate, pxPerMm, width)
+        const x = Math.max(0, placed.x - pad.left)
+        const y = Math.max(0, placed.y - pad.top)
+        const right = Math.min(width, placed.x + placed.width + pad.right)
+        const bottom = Math.min(height, placed.y + placed.height + pad.bottom)
+        paintPlate(group, element.plate, x, y, right - x, bottom - y, pxPerMm)
+      }
+      paintRaster(group, element.imageId, element, width, height, images)
+      return
     }
-    paintRaster(group, element.imageId, element, width, height, images)
+    case "lockup":
+      paintLockup(group, element, width, height, pxPerMm, images)
+      return
+    case "missing":
+      return
+    case "wordmark": {
+      const pad = padsOf(element.plate, pxPerMm, width)
+      const innerWidth = Math.max(1, width - pad.left - pad.right)
+      const text = addFlowingText(group, element.text, element.style, pad.left, 0, innerWidth, pxPerMm)
+      const used = text.height()
+      const block = Math.min(height, used + pad.top + pad.bottom)
+      const top = Math.max(0, (height - block) / 2)
+      text.y(top + pad.top)
+      paintPlate(group, element.plate, 0, top, width, block, pxPerMm)
+      return
+    }
+    default: {
+      const unknown: never = element.kind
+      return unknown
+    }
+  }
+}
+
+const LOCKUP_GAP_MM = 1.6
+
+function paintLockup(
+  group: Konva.Group,
+  element: Extract<ResolvedElement, { type: "identity" }>,
+  width: number,
+  height: number,
+  pxPerMm: number,
+  images: ReadonlyMap<string, HTMLImageElement>,
+) {
+  const pad = padsOf(element.plate, pxPerMm, width)
+  const gap = LOCKUP_GAP_MM * pxPerMm
+  const innerWidth = Math.max(1, width - pad.left - pad.right)
+  const innerHeight = Math.max(1, height - pad.top - pad.bottom)
+  const image = element.imageId ? images.get(element.imageId) : undefined
+  const imageWidth = image?.naturalWidth || element.imageWidth
+  const imageHeight = image?.naturalHeight || element.imageHeight
+  paintPlate(group, element.plate, 0, 0, width, height, pxPerMm)
+  if (element.layout === "row") {
+    const aspect = imageWidth / Math.max(1, imageHeight)
+    const logoWidth = Math.min(innerWidth * 0.45, innerHeight * aspect, Math.max(1, innerWidth - gap - 1))
+    paintContainedImage(group, image, pad.left, pad.top, logoWidth, innerHeight, imageWidth, imageHeight)
+    const textX = pad.left + logoWidth + gap
+    const textWidth = Math.max(1, width - pad.right - textX)
+    const text = addFlowingText(group, element.text, element.style, textX, 0, textWidth, pxPerMm)
+    text.y(pad.top + Math.max(0, (innerHeight - text.height()) / 2))
     return
   }
-  if (element.kind === "missing") return
-  const pad = padsOf(element.plate, pxPerMm, width)
-  const innerWidth = Math.max(1, width - pad.left - pad.right)
   const text = addFlowingText(group, element.text, element.style, pad.left, 0, innerWidth, pxPerMm)
-  const used = text.height()
-  const block = Math.min(height, used + pad.top + pad.bottom)
-  const top = Math.max(0, (height - block) / 2)
-  text.y(top + pad.top)
-  paintPlate(group, element.plate, 0, top, width, block, pxPerMm)
+  const logoHeight = Math.max(1, innerHeight - gap - text.height())
+  paintContainedImage(group, image, pad.left, pad.top, innerWidth, logoHeight, imageWidth, imageHeight)
+  text.y(pad.top + logoHeight + gap)
+}
+
+function paintContainedImage(
+  group: Konva.Group,
+  image: HTMLImageElement | undefined,
+  x: number,
+  y: number,
+  boxWidth: number,
+  boxHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+) {
+  if (!image || boxWidth <= 0 || boxHeight <= 0) return
+  const placed = photoPlacement({
+    frameWidth: boxWidth,
+    frameHeight: boxHeight,
+    imageWidth,
+    imageHeight,
+    fit: "contain",
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+  })
+  group.add(
+    new Konva.Image({
+      image,
+      x: x + placed.x,
+      y: y + placed.y,
+      width: placed.width,
+      height: placed.height,
+      listening: false,
+    }),
+  )
 }
 
 function addFlowingText(

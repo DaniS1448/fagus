@@ -46,11 +46,27 @@ export const bibleInputSchema = z
     message: "El versículo final tiene que ser el mismo o posterior al inicial",
   })
 
+const identityTitleSchema = z.string().trim().min(1, "Escribe el título").max(80)
+export const identityLayoutSchema = z.enum(["stack", "row"])
+
 export const identityWordmarkSchema = z.object({
   kind: z.literal("wordmark"),
   name: nameSchema,
-  text: z.string().trim().min(1, "Escribe el título").max(80),
+  text: identityTitleSchema,
   groupId: groupIdSchema,
+})
+
+export const identityLockupSchema = z.object({
+  kind: z.literal("lockup"),
+  name: nameSchema,
+  text: identityTitleSchema,
+  layout: identityLayoutSchema,
+  groupId: groupIdSchema,
+})
+
+export const identityLockupFileSchema = z.object({
+  text: identityTitleSchema,
+  layout: identityLayoutSchema,
 })
 
 export const identityLogoPatchSchema = z.object({

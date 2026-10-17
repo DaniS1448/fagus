@@ -35,6 +35,7 @@ export function imageForm(
   prepared: Awaited<ReturnType<typeof prepareImage>>,
   name: string,
   groupId?: string | null,
+  extra?: { kind?: string; text?: string; layout?: string },
 ): FormData {
   const body = new FormData()
   body.set("file", prepared.file)
@@ -43,6 +44,9 @@ export function imageForm(
   body.set("heightPx", String(prepared.height))
   body.set("name", name)
   if (groupId) body.set("groupId", groupId)
+  if (extra?.kind) body.set("kind", extra.kind)
+  if (extra?.text !== undefined) body.set("text", extra.text)
+  if (extra?.layout) body.set("layout", extra.layout)
   return body
 }
 

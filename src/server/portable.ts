@@ -74,6 +74,7 @@ export function exportBundle(projectId: string): { bytes: Buffer; filename: stri
         kind TEXT NOT NULL,
         name TEXT NOT NULL,
         text TEXT NOT NULL,
+        layout TEXT,
         mime TEXT,
         width_px INTEGER,
         height_px INTEGER,
@@ -124,10 +125,22 @@ export function exportBundle(projectId: string): { bytes: Buffer; filename: stri
         insertIdentityGroup.run(row.id, row.name)
       }
       const insertIdentity = bundle.prepare(
-        "INSERT INTO identity (id, group_id, kind, name, text, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO identity (id, group_id, kind, name, text, layout, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       for (const row of identityRows.filter((item) => selection.identityIds.includes(item.id))) {
-        insertIdentity.run(row.id, row.groupId, row.kind, row.name, row.text, row.mime, row.widthPx, row.heightPx, row.thumbnail, row.bytes)
+        insertIdentity.run(
+          row.id,
+          row.groupId,
+          row.kind,
+          row.name,
+          row.text,
+          row.layout,
+          row.mime,
+          row.widthPx,
+          row.heightPx,
+          row.thumbnail,
+          row.bytes,
+        )
       }
       const insertGroup = bundle.prepare("INSERT INTO photo_group (id, name) VALUES (?, ?)")
       for (const row of groupRows.filter((item) => selection.groupIds.includes(item.id))) {
@@ -258,6 +271,7 @@ export function importBundle(bytes: Buffer): string {
               id: ids.identities.get(row.id) ?? row.id,
               groupId: remapGroupId(row.group_id, identityGroupMap),
               kind: row.kind,
+              layout: storedLayout(row.layout),
               name: row.name,
               text: row.text,
               mime: row.mime,
@@ -443,6 +457,7 @@ export function importLibrary(bytes: Buffer, expected: LibraryScope): void {
               id: crypto.randomUUID(),
               groupId: remapGroupId(row.group_id, identityGroupMap),
               kind: row.kind,
+              layout: storedLayout(row.layout),
               name: row.name,
               text: row.text,
               mime: row.mime,
@@ -518,13 +533,13 @@ function writeIdentities(bundle: Database.Database, groupId?: string) {
     : db.select().from(identityGroups).all()
   for (const row of groupRows) groups.run(row.id, row.name)
   const items = bundle.prepare(
-    "INSERT INTO identity (id, group_id, kind, name, text, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO identity (id, group_id, kind, name, text, layout, mime, width_px, height_px, thumbnail, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
   const itemRows = groupId
     ? db.select().from(identities).where(eq(identities.groupId, groupId)).all()
     : db.select().from(identities).all()
   for (const row of itemRows) {
-    items.run(row.id, row.groupId, row.kind, row.name, row.text, row.mime, row.widthPx, row.heightPx, row.thumbnail, row.bytes)
+    items.run(row.id, row.groupId, row.kind, row.name, row.text, row.layout, row.mime, row.widthPx, row.heightPx, row.thumbnail, row.bytes)
   }
 }
 
@@ -566,6 +581,7 @@ function librarySchema(): string {
       kind TEXT NOT NULL,
       name TEXT NOT NULL,
       text TEXT NOT NULL,
+      layout TEXT,
       mime TEXT,
       width_px INTEGER,
       height_px INTEGER,
@@ -640,6 +656,7 @@ type IdentityRow = {
   kind: string
   name: string
   text: string
+  layout: string | null
   mime: string | null
   width_px: number | null
   height_px: number | null
@@ -686,15 +703,28 @@ function readBible(bundle: Database.Database): BibleRow[] {
 
 function readIdentities(bundle: Database.Database): IdentityRow[] {
   if (!tableExists(bundle, "identity")) return []
-  if (!columnExists(bundle, "identity", "group_id")) {
+  const hasGroup = columnExists(bundle, "identity", "group_id")
+  const hasLayout = columnExists(bundle, "identity", "layout")
+  if (!hasGroup) {
     const rows = bundle
       .prepare("SELECT id, kind, name, text, mime, width_px, height_px, thumbnail, bytes FROM identity")
-      .all() as Array<Omit<IdentityRow, "group_id">>
-    return rows.map((row) => ({ ...row, group_id: null }))
+      .all() as Array<Omit<IdentityRow, "group_id" | "layout">>
+    return rows.map((row) => ({ ...row, group_id: null, layout: null }))
+  }
+  if (!hasLayout) {
+    const rows = bundle
+      .prepare("SELECT id, group_id, kind, name, text, mime, width_px, height_px, thumbnail, bytes FROM identity")
+      .all() as Array<Omit<IdentityRow, "layout">>
+    return rows.map((row) => ({ ...row, layout: null }))
   }
   return bundle
-    .prepare("SELECT id, group_id, kind, name, text, mime, width_px, height_px, thumbnail, bytes FROM identity")
+    .prepare("SELECT id, group_id, kind, name, text, layout, mime, width_px, height_px, thumbnail, bytes FROM identity")
     .all() as IdentityRow[]
+}
+
+function storedLayout(layout: string | null): "stack" | "row" | null {
+  if (layout === "stack" || layout === "row") return layout
+  return null
 }
 
 function readPhotos(bundle: Database.Database): PhotoRow[] {

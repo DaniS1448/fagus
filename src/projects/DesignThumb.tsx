@@ -1,7 +1,7 @@
 import Konva from "konva"
 import { useEffect, useMemo, useState } from "react"
 import type { SideDocument } from "../domain/document"
-import type { Design, Identity } from "../domain/models"
+import { identityHasImage, type Design, type Identity } from "../domain/models"
 import { mixSeed } from "../domain/random"
 import { resolveDocument, type LibrarySnapshot } from "../domain/resolve"
 import { paintContent } from "../editor/paintSide"
@@ -127,7 +127,7 @@ function referencedPhotoIds(designs: readonly Design[]) {
 }
 
 function referencedLogoIds(designs: readonly Design[], identities: readonly Identity[]) {
-  const logos = new Set(identities.flatMap((item) => (item.kind === "logo" ? [item.id] : [])))
+  const logos = new Set(identities.flatMap((item) => (identityHasImage(item.kind) ? [item.id] : [])))
   const ids = new Set<string>()
   for (const design of designs) {
     for (const element of [...design.front.elements, ...design.back.elements]) {

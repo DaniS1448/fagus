@@ -20,7 +20,8 @@ export type BibleRecord = {
 
 export type IdentityRecord = {
   id: string
-  kind: "wordmark" | "logo"
+  kind: "wordmark" | "logo" | "lockup"
+  layout: "stack" | "row" | null
   name: string
   text: string
   widthPx: number | null
@@ -87,7 +88,8 @@ export type ResolvedBible = Frame & {
 
 export type ResolvedIdentity = Frame & {
   type: "identity"
-  kind: "wordmark" | "logo" | "missing"
+  kind: "wordmark" | "logo" | "lockup" | "missing"
+  layout: "stack" | "row" | null
   text: string
   imageId: string | null
   imageWidth: number
@@ -234,6 +236,7 @@ function resolveIdentity(
     return {
       ...shared,
       kind: "missing",
+      layout: null,
       text: "",
       imageId: null,
       imageWidth: 1,
@@ -246,6 +249,7 @@ function resolveIdentity(
       return {
         ...shared,
         kind: "logo",
+        layout: null,
         text: identity.name,
         imageId: identity.id,
         imageWidth: identity.widthPx ?? 1,
@@ -256,11 +260,23 @@ function resolveIdentity(
       return {
         ...shared,
         kind: "wordmark",
+        layout: null,
         text: identity.text,
         imageId: null,
         imageWidth: 1,
         imageHeight: 1,
         broken: identity.text.trim().length === 0,
+      }
+    case "lockup":
+      return {
+        ...shared,
+        kind: "lockup",
+        layout: identity.layout === "row" ? "row" : "stack",
+        text: identity.text,
+        imageId: identity.id,
+        imageWidth: identity.widthPx ?? 1,
+        imageHeight: identity.heightPx ?? 1,
+        broken: identity.text.trim().length === 0 || identity.widthPx == null || identity.heightPx == null,
       }
     default: {
       const unknown: never = identity.kind

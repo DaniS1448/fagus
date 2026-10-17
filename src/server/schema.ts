@@ -85,6 +85,7 @@ export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
   groupId: text("group_id").references(() => identityGroups.id, { onDelete: "set null" }),
   kind: text("kind").notNull(),
+  layout: text("layout"),
   name: text("name").notNull(),
   text: text("text").notNull(),
   mime: text("mime"),

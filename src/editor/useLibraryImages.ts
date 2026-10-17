@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { Identity, Photo } from "../domain/models"
+import { identityHasImage, type Identity, type Photo } from "../domain/models"
 import { loadHtmlImage } from "../media"
 
 export function useLibraryImages(photos: Photo[] | undefined, identities: Identity[] | undefined) {
@@ -18,7 +18,7 @@ export function useLibraryImages(photos: Photo[] | undefined, identities: Identi
       )
     }
     for (const item of identities ?? []) {
-      if (item.kind !== "logo") continue
+      if (!identityHasImage(item.kind)) continue
       jobs.push(
         loadHtmlImage(`/api/identities/${item.id}/file`)
           .then((image) => [item.id, image] as const)

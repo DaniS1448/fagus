@@ -6,7 +6,7 @@ import { uploadPhotos } from "../library/uploadPhotos"
 import { imageForm, prepareImage } from "../media"
 import { Button, Field, Notice, Select, TextArea, TextInput } from "../ui/controls"
 
-export type DialogKind = "quote" | "bible" | "wordmark" | "logo" | "photo"
+export type DialogKind = "quote" | "bible" | "wordmark" | "logo" | "lockup" | "photo"
 
 export function CreateDialog({
   kind,
@@ -20,6 +20,7 @@ export function CreateDialog({
     bible: "Nuevo texto bíblico",
     wordmark: "Nuevo título",
     logo: "Nuevo logo",
+    lockup: "Logo y título",
     photo: "Subir foto",
   }[kind]
 
@@ -50,6 +51,8 @@ function DialogForm({ kind, onClose }: { kind: DialogKind; onClose: () => void }
       return <WordmarkForm onClose={onClose} />
     case "logo":
       return <LogoForm onClose={onClose} />
+    case "lockup":
+      return <LockupForm onClose={onClose} />
     case "photo":
       return <PhotoForm onClose={onClose} />
     default: {
@@ -186,6 +189,64 @@ function WordmarkForm({ onClose }: { onClose: () => void }) {
 
 function LogoForm({ onClose }: { onClose: () => void }) {
   return <ImageForm onClose={onClose} />
+}
+
+function LockupForm({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState("")
+  const [text, setText] = useState("")
+  const [layout, setLayout] = useState<"stack" | "row">("stack")
+  const [file, setFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new ApiError("Elige un archivo")
+      const prepared = await prepareImage(file)
+      const body = imageForm(prepared, name || file.name.replace(/\.[^.]+$/, ""), undefined, {
+        kind: "lockup",
+        text,
+        layout,
+      })
+      return apiForm<Identity>("/api/identities", "POST", body)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["identities"] })
+      onClose()
+    },
+    onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo guardar"),
+  })
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        save.mutate()
+      }}
+    >
+      <Field label="Nombre en la biblioteca">
+        <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Emaus 2027" />
+      </Field>
+      <Field label="Título">
+        <TextInput value={text} onChange={(event) => setText(event.target.value)} placeholder="Iglesia Adventista Emaus 2027" />
+      </Field>
+      <fieldset className="flex flex-col gap-2 text-sm">
+        <legend>Disposición</legend>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="layout" checked={layout === "stack"} onChange={() => setLayout("stack")} />
+          Logo arriba, título debajo
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="layout" checked={layout === "row"} onChange={() => setLayout("row")} />
+          Logo a la izquierda, título a la derecha
+        </label>
+      </fieldset>
+      <Field label="Archivo">
+        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      </Field>
+      {error ? <Notice>{error}</Notice> : null}
+      <FormActions pending={save.isPending} onClose={onClose} label="Guardar identidad" />
+    </form>
+  )
 }
 
 function PhotoForm({ onClose }: { onClose: () => void }) {

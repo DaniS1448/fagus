@@ -61,10 +61,14 @@ export type BibleText = {
   updatedAt: number
 }
 
+export type IdentityKind = "wordmark" | "logo" | "lockup"
+export type IdentityLayout = "stack" | "row"
+
 export type Identity = {
   id: string
   groupId: string | null
-  kind: "wordmark" | "logo"
+  kind: IdentityKind
+  layout: IdentityLayout | null
   name: string
   text: string
   mime: string | null
@@ -72,6 +76,20 @@ export type Identity = {
   heightPx: number | null
   createdAt: number
   updatedAt: number
+}
+
+export function identityHasImage(kind: IdentityKind): boolean {
+  switch (kind) {
+    case "logo":
+    case "lockup":
+      return true
+    case "wordmark":
+      return false
+    default: {
+      const unknown: never = kind
+      return unknown
+    }
+  }
 }
 
 export function designPayload(design: Pick<

@@ -139,6 +139,7 @@ export function EditorPage() {
       identities: (identities.data ?? []).map((item) => ({
         id: item.id,
         kind: item.kind,
+        layout: item.layout,
         name: item.name,
         text: item.text,
         widthPx: item.widthPx,
@@ -341,6 +342,7 @@ export function EditorPage() {
           onCreateBible={() => setDialog("bible")}
           onCreateWordmark={() => setDialog("wordmark")}
           onCreateLogo={() => setDialog("logo")}
+          onCreateLockup={() => setDialog("lockup")}
         />
         <div className="flex min-h-[70vh] flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">

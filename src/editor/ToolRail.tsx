@@ -25,6 +25,7 @@ export function ToolRail({
   onCreateBible,
   onCreateWordmark,
   onCreateLogo,
+  onCreateLockup,
 }: {
   libraries: Libraries
   onCreatePhoto: () => void
@@ -32,6 +33,7 @@ export function ToolRail({
   onCreateBible: () => void
   onCreateWordmark: () => void
   onCreateLogo: () => void
+  onCreateLockup: () => void
 }) {
   const draft = useEditorStore((state) => state.draft)
   const side = useEditorStore((state) => state.side)
@@ -130,7 +132,7 @@ export function ToolRail({
             setAdding(false)
           }}
           onIdentity={(item) => {
-            addElement(createIdentityElement(item.id, item.kind, draft.widthMm, draft.heightMm), "front")
+            addElement(createIdentityElement(item.id, item.kind, draft.widthMm, draft.heightMm, item.layout), "front")
             setAdding(false)
           }}
           onCreatePhoto={onCreatePhoto}
@@ -138,6 +140,7 @@ export function ToolRail({
           onCreateBible={onCreateBible}
           onCreateWordmark={onCreateWordmark}
           onCreateLogo={onCreateLogo}
+          onCreateLockup={onCreateLockup}
         />
       ) : null}
     </div>
@@ -188,8 +191,18 @@ function layerCopy(element: BookmarkElement, libraries: Libraries): { name: stri
     case "identity": {
       const identity = libraries.identities.find((item) => item.id === element.identityId)
       if (!identity) return { name: "Identidad", kind: "Identidad", mark: "identity" }
-      if (identity.kind === "logo") return { name: identity.name, kind: "Logo", mark: "identity" }
-      return { name: identity.text, kind: "Título", mark: "identity" }
+      switch (identity.kind) {
+        case "logo":
+          return { name: identity.name, kind: "Logo", mark: "identity" }
+        case "wordmark":
+          return { name: identity.text, kind: "Título", mark: "identity" }
+        case "lockup":
+          return { name: identity.text || identity.name, kind: "Logo y título", mark: "identity" }
+        default: {
+          const unknown: never = identity.kind
+          return unknown
+        }
+      }
     }
     default: {
       const unknown: never = element
