@@ -12,6 +12,7 @@ export type PlannedCell = {
   yMm: number
   widthMm: number
   heightMm: number
+  rotation: 0 | 90
   resolved: ResolvedSide
 }
 
@@ -75,7 +76,15 @@ function buildSheet(
   sizeLabel: string,
   items: Array<{ design: Design; copyIndex: number }>,
   libraries: LibrarySnapshot,
-  placements: Array<{ id: string; copyIndex: number; xMm: number; yMm: number; widthMm: number; heightMm: number }>,
+  placements: Array<{
+    id: string
+    copyIndex: number
+    xMm: number
+    yMm: number
+    widthMm: number
+    heightMm: number
+    rotation: 0 | 90
+  }>,
   cropMarks: CropMark[],
 ): PlannedSheet {
   return {
@@ -101,6 +110,7 @@ function buildSheet(
           yMm: placement.yMm,
           widthMm: placement.widthMm,
           heightMm: placement.heightMm,
+          rotation: placement.rotation,
           resolved: resolveDocument(document, libraries, mixSeed(item.design.seed, item.copyIndex)),
         },
       ]

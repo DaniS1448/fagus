@@ -19,6 +19,7 @@ export type ImposeOptions = {
   duplex: boolean
   bookmarkWidthMm: number
   bookmarkHeightMm: number
+  bookmarkOrientation: Orientation
 }
 
 export type ImpositionItem = {
@@ -31,6 +32,7 @@ export type Placement = ImpositionItem & {
   yMm: number
   widthMm: number
   heightMm: number
+  rotation: 0 | 90
 }
 
 export type ImposedSheet = {
@@ -63,19 +65,12 @@ export function impose(items: readonly ImpositionItem[], options: ImposeOptions)
   const sheets: ImposedSheet[] = []
   for (let start = 0; start < items.length; start += capacity.perSheet) {
     const slice = items.slice(start, start + capacity.perSheet)
-    const front = slice.map((item, index) =>
-      placementAt(item, index, capacity, options.bookmarkWidthMm, options.bookmarkHeightMm),
-    )
+    const placed = placedSize(options)
+    const front = slice.map((item, index) => placementAt(item, index, capacity, placed))
     const back = options.duplex
       ? slice.map((item, index) => {
           const mirrored = mirrorIndex(index, capacity.cols, capacity.rows, page, options.flip)
-          return placementAt(
-            item,
-            mirrored,
-            capacity,
-            options.bookmarkWidthMm,
-            options.bookmarkHeightMm,
-          )
+          return placementAt(item, mirrored, capacity, placed)
         })
       : []
     sheets.push({
@@ -107,8 +102,9 @@ type Capacity = {
 function gridCapacity(pageWidth: number, pageHeight: number, options: ImposeOptions): Capacity {
   const gap = Math.max(0, options.gapMm)
   const margin = Math.max(0, options.marginMm)
-  const itemW = options.bookmarkWidthMm
-  const itemH = options.bookmarkHeightMm
+  const placed = placedSize(options)
+  const itemW = placed.widthMm
+  const itemH = placed.heightMm
   const usableW = pageWidth - margin * 2
   const usableH = pageHeight - margin * 2
   if (itemW <= 0 || itemH <= 0 || itemW > usableW || itemH > usableH) {
@@ -130,12 +126,24 @@ function gridCapacity(pageWidth: number, pageHeight: number, options: ImposeOpti
   }
 }
 
+function placedSize(options: ImposeOptions): { widthMm: number; heightMm: number; rotation: 0 | 90 } {
+  switch (options.bookmarkOrientation) {
+    case "portrait":
+      return { widthMm: options.bookmarkWidthMm, heightMm: options.bookmarkHeightMm, rotation: 0 }
+    case "landscape":
+      return { widthMm: options.bookmarkHeightMm, heightMm: options.bookmarkWidthMm, rotation: 90 }
+    default: {
+      const unknown: never = options.bookmarkOrientation
+      return unknown
+    }
+  }
+}
+
 function placementAt(
   item: ImpositionItem,
   index: number,
   capacity: Capacity,
-  widthMm: number,
-  heightMm: number,
+  placed: { widthMm: number; heightMm: number; rotation: 0 | 90 },
 ): Placement {
   const col = index % capacity.cols
   const row = Math.floor(index / capacity.cols)
@@ -144,8 +152,9 @@ function placementAt(
     copyIndex: item.copyIndex,
     xMm: capacity.originX + col * capacity.stepX,
     yMm: capacity.originY + row * capacity.stepY,
-    widthMm,
-    heightMm,
+    widthMm: placed.widthMm,
+    heightMm: placed.heightMm,
+    rotation: placed.rotation,
   }
 }
 

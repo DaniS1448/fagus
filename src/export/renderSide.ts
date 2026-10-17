@@ -9,6 +9,7 @@ export async function renderSidePng(input: {
   heightMm: number
   dpi: number
   images: ReadonlyMap<string, HTMLImageElement>
+  rotation?: 0 | 90
 }): Promise<Uint8Array> {
   await document.fonts.ready
   const pxPerMm = input.dpi / 25.4
@@ -27,12 +28,25 @@ export async function renderSidePng(input: {
     guides: false,
   })
   layer.draw()
-  const canvas = stage.toCanvas({ pixelRatio: 1 })
+  const painted = stage.toCanvas({ pixelRatio: 1 })
   stage.destroy()
+  const canvas = input.rotation === 90 ? turnClockwise(painted) : painted
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("No se pudo crear el PNG"))), "image/png")
   })
   return new Uint8Array(await blob.arrayBuffer())
+}
+
+function turnClockwise(source: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = document.createElement("canvas")
+  canvas.width = source.height
+  canvas.height = source.width
+  const context = canvas.getContext("2d")
+  if (!context) return source
+  context.translate(canvas.width, 0)
+  context.rotate(Math.PI / 2)
+  context.drawImage(source, 0, 0)
+  return canvas
 }
 
 export async function sheetsToPdf(sheets: readonly PlannedSheet[], images: ReadonlyMap<string, HTMLImageElement>, dpi: number): Promise<Uint8Array> {
@@ -41,6 +55,7 @@ export async function sheetsToPdf(sheets: readonly PlannedSheet[], images: Reado
   for (const sheet of sheets) {
     const placed = []
     for (const cell of sheet.cells) {
+      const content = contentSize(cell)
       const key = JSON.stringify({
         id: cell.design.id,
         side: sheet.side,
@@ -48,14 +63,16 @@ export async function sheetsToPdf(sheets: readonly PlannedSheet[], images: Reado
         seed: cell.design.seed,
         front: cell.design.front,
         back: cell.design.back,
+        rotation: cell.rotation,
         dpi,
       })
       let png = cache.get(key)
       if (!png) {
         png = await renderSidePng({
           side: cell.resolved,
-          widthMm: cell.widthMm,
-          heightMm: cell.heightMm,
+          widthMm: content.widthMm,
+          heightMm: content.heightMm,
+          rotation: cell.rotation,
           dpi,
           images,
         })
@@ -77,4 +94,17 @@ export async function sheetsToPdf(sheets: readonly PlannedSheet[], images: Reado
     })
   }
   return buildPdf(pages)
+}
+
+export function contentSize(cell: PlannedSheet["cells"][number]): { widthMm: number; heightMm: number } {
+  switch (cell.rotation) {
+    case 0:
+      return { widthMm: cell.widthMm, heightMm: cell.heightMm }
+    case 90:
+      return { widthMm: cell.heightMm, heightMm: cell.widthMm }
+    default: {
+      const unknown: never = cell.rotation
+      return unknown
+    }
+  }
 }

@@ -10,7 +10,7 @@ import { downloadBlob, slugify } from "../media"
 import { Button, Field, Notice, Select } from "../ui/controls"
 import { useLibraryImages } from "../editor/useLibraryImages"
 import { planSheets, type PlannedSheet } from "./planSheets"
-import { renderSidePng, sheetsToPdf } from "./renderSide"
+import { contentSize, renderSidePng, sheetsToPdf } from "./renderSide"
 
 type PreviewCell = {
   url: string
@@ -47,6 +47,7 @@ export function PrintPage() {
   const [copies, setCopies] = useState<Record<string, number>>({})
   const [paper, setPaper] = useState<PaperName>("A4")
   const [orientation, setOrientation] = useState<Orientation>("portrait")
+  const [bookmarkOrientation, setBookmarkOrientation] = useState<Orientation>("portrait")
   const [marginMm, setMarginMm] = useState(10)
   const [gapMm, setGapMm] = useState(5)
   const [cropMarks, setCropMarks] = useState(true)
@@ -102,6 +103,7 @@ export function PrintPage() {
         const planned = planSheets(jobs, libraries, {
           paper,
           orientation,
+          bookmarkOrientation,
           marginMm,
           gapMm,
           cropMarks,
@@ -120,10 +122,12 @@ export function PrintPage() {
         for (const [index, sheet] of planned.sheets.entries()) {
           const cells: PreviewCell[] = []
           for (const cell of sheet.cells) {
+            const content = contentSize(cell)
             const png = await renderSidePng({
               side: cell.resolved,
-              widthMm: cell.widthMm,
-              heightMm: cell.heightMm,
+              widthMm: content.widthMm,
+              heightMm: content.heightMm,
+              rotation: cell.rotation,
               dpi: 110,
               images,
             })
@@ -161,7 +165,7 @@ export function PrintPage() {
     }
     // jobs is rebuilt each render; jobsKey captures the values that should refresh the sheet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobsKey, libraries, images, paper, orientation, marginMm, gapMm, cropMarks, flip, duplex])
+  }, [jobsKey, libraries, images, paper, orientation, bookmarkOrientation, marginMm, gapMm, cropMarks, flip, duplex])
 
   async function downloadPdf() {
     setError(null)
@@ -170,6 +174,7 @@ export function PrintPage() {
       const planned = planSheets(jobs, libraries, {
         paper,
         orientation,
+        bookmarkOrientation,
         marginMm,
         gapMm,
         cropMarks,
@@ -251,10 +256,19 @@ export function PrintPage() {
               <option value="A3">A3</option>
             </Select>
           </Field>
-          <Field label="Orientación">
+          <Field label="Orientación del papel">
             <Select
               value={orientation}
               onChange={(event) => setOrientation(event.target.value === "landscape" ? "landscape" : "portrait")}
+            >
+              <option value="portrait">Vertical</option>
+              <option value="landscape">Horizontal</option>
+            </Select>
+          </Field>
+          <Field label="Orientación del marcapáginas">
+            <Select
+              value={bookmarkOrientation}
+              onChange={(event) => setBookmarkOrientation(event.target.value === "landscape" ? "landscape" : "portrait")}
             >
               <option value="portrait">Vertical</option>
               <option value="landscape">Horizontal</option>

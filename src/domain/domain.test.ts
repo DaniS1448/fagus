@@ -282,6 +282,7 @@ describe("impose", () => {
     duplex: true,
     bookmarkWidthMm: 50,
     bookmarkHeightMm: 155,
+    bookmarkOrientation: "portrait" as const,
   }
 
   it("centers three bookmarks on a portrait A4 and mirrors columns for the back", () => {
@@ -310,6 +311,24 @@ describe("impose", () => {
     })
     expect(result.fits).toBe(false)
     expect(result.sheets).toEqual([])
+  })
+
+  it("lays bookmarks on their side and keeps the back in the same turn", () => {
+    const result = impose(
+      [0, 1, 2, 3, 4].map((copyIndex) => ({ id: "design", copyIndex })),
+      { ...options, bookmarkOrientation: "landscape" },
+    )
+    expect(result.perSheet).toBe(5)
+    const front = result.sheets[0]?.front ?? []
+    expect(front.map((cell) => [cell.widthMm, cell.heightMm, cell.rotation])).toEqual([
+      [155, 50, 90],
+      [155, 50, 90],
+      [155, 50, 90],
+      [155, 50, 90],
+      [155, 50, 90],
+    ])
+    expect(front.map((cell) => cell.yMm)).toEqual([15.5, 69.5, 123.5, 177.5, 231.5])
+    expect(result.sheets[0]?.back.every((cell) => cell.rotation === 90)).toBe(true)
   })
 
   it("mirrors rows when the long edge is horizontal", () => {
