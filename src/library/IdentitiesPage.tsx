@@ -7,8 +7,10 @@ import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../
 import { PAGE_SIZE, usePagedList } from "../ui/page"
 import { Pager } from "../ui/Pager"
 import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
+import { LibraryListTools } from "./listTools"
 import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
+import { filterByQuery, listResetKey } from "./search"
 
 type IdentityDraft = { kind: "wordmark" | "logo"; name: string; text: string; groupId: string }
 
@@ -16,11 +18,13 @@ export function IdentitiesPage() {
   const queryClient = useQueryClient()
   const identities = useQuery({ queryKey: ["identities"], queryFn: () => apiGet<Identity[]>("/api/identities") })
   const [filter, setFilter] = useState<DrawerFilter>("all")
+  const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const [creating, setCreating] = useState<"wordmark" | "logo" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(identities.data ?? [], filter)
-  const paged = usePagedList(visible, PAGE_SIZE.library, filter)
+  const matches = filterByQuery(visible, query, (item) => `${item.name} ${item.text} ${item.kind === "logo" ? "logo" : "título"}`)
+  const paged = usePagedList(matches, PAGE_SIZE.library, listResetKey(filter, query))
   const chosen = (identities.data ?? []).filter((item) => selected.includes(item.id))
   const single = chosen.length === 1 ? chosen[0] : null
   const mode = single?.kind ?? creating ?? "wordmark"
@@ -100,6 +104,16 @@ export function IdentitiesPage() {
               Nuevo logo
             </Button>
           </div>
+          {visible.length > 0 || query.trim().length > 0 ? (
+            <LibraryListTools
+              query={query}
+              onQuery={setQuery}
+              matchIds={matches.map((item) => item.id)}
+              pageIds={paged.items.map((item) => item.id)}
+              selectedIds={selected}
+              onSelect={setSelected}
+            />
+          ) : null}
           <SelectionStrip
             kind="identities"
             ids={selected}
@@ -109,7 +123,7 @@ export function IdentitiesPage() {
               void queryClient.invalidateQueries({ queryKey: ["identities"] })
             }}
           />
-          {identities.data && visible.length === 0 ? (
+          {identities.data && visible.length === 0 && query.trim().length === 0 ? (
             <div className="mt-6">
               <EmptyState title="Este cajón está vacío">Añade un título como «Emaus 2027» o el logo en PNG.</EmptyState>
             </div>

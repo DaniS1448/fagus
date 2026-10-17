@@ -7,8 +7,10 @@ import { Button, ConfirmButton, EmptyState, Field, Notice, TextArea, TextInput }
 import { PAGE_SIZE, usePagedList } from "../ui/page"
 import { Pager } from "../ui/Pager"
 import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
+import { LibraryListTools } from "./listTools"
 import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
+import { filterByQuery, listResetKey } from "./search"
 
 type BibleDraft = {
   book: string
@@ -34,10 +36,14 @@ export function BiblePage() {
   const queryClient = useQueryClient()
   const texts = useQuery({ queryKey: ["bible"], queryFn: () => apiGet<BibleText[]>("/api/bible-texts") })
   const [filter, setFilter] = useState<DrawerFilter>("all")
+  const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(texts.data ?? [], filter)
-  const paged = usePagedList(visible, PAGE_SIZE.library, filter)
+  const matches = filterByQuery(visible, query, (text) =>
+    `${formatReference(text.book, text.chapter, text.verseStart, text.verseEnd)} ${text.body} ${text.translation}`,
+  )
+  const paged = usePagedList(matches, PAGE_SIZE.library, listResetKey(filter, query))
   const chosen = (texts.data ?? []).filter((text) => selected.includes(text.id))
   const single = chosen.length === 1 ? chosen[0] : null
 
@@ -109,6 +115,16 @@ export function BiblePage() {
               Nuevo texto
             </Button>
           </div>
+          {visible.length > 0 || query.trim().length > 0 ? (
+            <LibraryListTools
+              query={query}
+              onQuery={setQuery}
+              matchIds={matches.map((text) => text.id)}
+              pageIds={paged.items.map((text) => text.id)}
+              selectedIds={selected}
+              onSelect={setSelected}
+            />
+          ) : null}
           <SelectionStrip
             kind="bible"
             ids={selected}
@@ -118,7 +134,7 @@ export function BiblePage() {
               void queryClient.invalidateQueries({ queryKey: ["bible"] })
             }}
           />
-          {texts.data && visible.length === 0 ? (
+          {texts.data && visible.length === 0 && query.trim().length === 0 ? (
             <div className="mt-6">
               <EmptyState title="Este cajón está vacío">Añade un pasaje para poder usarlo en los diseños.</EmptyState>
             </div>

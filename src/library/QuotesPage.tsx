@@ -6,8 +6,10 @@ import { Button, ConfirmButton, EmptyState, Field, Notice, TextArea, TextInput }
 import { PAGE_SIZE, usePagedList } from "../ui/page"
 import { Pager } from "../ui/Pager"
 import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
+import { LibraryListTools } from "./listTools"
 import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
+import { filterByQuery, listResetKey } from "./search"
 
 type QuoteDraft = { body: string; attribution: string; groupId: string }
 
@@ -15,10 +17,12 @@ export function QuotesPage() {
   const queryClient = useQueryClient()
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: () => apiGet<Quote[]>("/api/quotes") })
   const [filter, setFilter] = useState<DrawerFilter>("all")
+  const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(quotes.data ?? [], filter)
-  const paged = usePagedList(visible, PAGE_SIZE.library, filter)
+  const matches = filterByQuery(visible, query, (quote) => `${quote.body} ${quote.attribution}`)
+  const paged = usePagedList(matches, PAGE_SIZE.library, listResetKey(filter, query))
   const chosen = (quotes.data ?? []).filter((quote) => selected.includes(quote.id))
   const single = chosen.length === 1 ? chosen[0] : null
 
@@ -72,6 +76,16 @@ export function QuotesPage() {
               Nueva cita
             </Button>
           </div>
+          {visible.length > 0 || query.trim().length > 0 ? (
+            <LibraryListTools
+              query={query}
+              onQuery={setQuery}
+              matchIds={matches.map((quote) => quote.id)}
+              pageIds={paged.items.map((quote) => quote.id)}
+              selectedIds={selected}
+              onSelect={setSelected}
+            />
+          ) : null}
           <SelectionStrip
             kind="quotes"
             ids={selected}
@@ -81,7 +95,7 @@ export function QuotesPage() {
               void queryClient.invalidateQueries({ queryKey: ["quotes"] })
             }}
           />
-          {quotes.data && visible.length === 0 ? (
+          {quotes.data && visible.length === 0 && query.trim().length === 0 ? (
             <div className="mt-6">
               <EmptyState title="Este cajón está vacío">Escribe la primera cita en la ficha.</EmptyState>
             </div>

@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { ItemGroup } from "../domain/models"
 import { Button, ConfirmButton, Field, Notice, Select, TextInput } from "../ui/controls"
+import { BULK_LIMIT } from "./search"
 
 export type DrawerFilter = "all" | "none" | string
 type Kind = "quotes" | "bible" | "identities"
@@ -175,6 +176,7 @@ export function SelectionStrip({
 
   if (ids.length === 0) return null
   const label = ids.length === 1 ? `1 ${noun.one}` : `${ids.length} ${noun.many}`
+  const tooMany = ids.length > BULK_LIMIT
   return (
     <div className="mt-4 flex flex-wrap items-end gap-2 border border-line bg-white/70 p-3">
       <p className="pb-2 text-sm">{label}</p>
@@ -188,15 +190,22 @@ export function SelectionStrip({
           ))}
         </Select>
       </Field>
-      <Button variant="quiet" disabled={move.isPending} onClick={() => move.mutate()}>
+      <Button variant="quiet" disabled={move.isPending || tooMany} onClick={() => move.mutate()}>
         Mover
       </Button>
-      <ConfirmButton
-        label="Borrar"
-        question={ids.length === 1 ? `¿Borrar 1 ${noun.one}?` : `¿Borrar ${ids.length} ${noun.many}?`}
-        pending={remove.isPending}
-        onConfirm={() => remove.mutate()}
-      />
+      {tooMany ? (
+        <Button variant="danger" disabled>
+          Borrar
+        </Button>
+      ) : (
+        <ConfirmButton
+          label="Borrar"
+          question={ids.length === 1 ? `¿Borrar 1 ${noun.one}?` : `¿Borrar ${ids.length} ${noun.many}?`}
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate()}
+        />
+      )}
+      {tooMany ? <Notice>Elige como mucho 200.</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
     </div>
   )

@@ -5,7 +5,9 @@ import type { Photo, PhotoGroup } from "../domain/models"
 import { Button, ConfirmButton, EmptyState, Field, Notice, Select, TextInput } from "../ui/controls"
 import { PAGE_SIZE, usePagedList } from "../ui/page"
 import { Pager } from "../ui/Pager"
+import { LibraryListTools } from "./listTools"
 import { LibraryTransfer } from "./LibraryTransfer"
+import { filterByQuery, listResetKey, BULK_LIMIT } from "./search"
 import { uploadPhotos } from "./uploadPhotos"
 
 type Filter = "all" | "none" | string
@@ -15,6 +17,7 @@ export function PhotosPage() {
   const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
   const groups = useQuery({ queryKey: ["photo-groups"], queryFn: () => apiGet<PhotoGroup[]>("/api/photo-groups") })
   const [filter, setFilter] = useState<Filter>("all")
+  const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const [moveTarget, setMoveTarget] = useState("none")
   const [progress, setProgress] = useState<string | null>(null)
@@ -29,7 +32,8 @@ export function PhotosPage() {
     if (filter === "none") return photo.groupId == null
     return photo.groupId === filter
   })
-  const paged = usePagedList(visible, PAGE_SIZE.photos, filter)
+  const matches = filterByQuery(visible, query, (photo) => photo.name)
+  const paged = usePagedList(matches, PAGE_SIZE.photos, listResetKey(filter, query))
   const activeGroup = groups.data?.find((group) => group.id === filter) ?? null
   const chosen = photos.data?.filter((photo) => selected.includes(photo.id)) ?? []
   const single = chosen.length === 1 ? chosen[0] : null
@@ -179,18 +183,18 @@ export function PhotosPage() {
               })
             }}
           />
-          {visible.length > 0 ? (
-            <Button variant="quiet" onClick={() => setSelected(visible.map((photo) => photo.id))}>
-              Seleccionar estas
-            </Button>
-          ) : null}
-          {selected.length > 0 ? (
-            <Button variant="quiet" onClick={() => setSelected([])}>
-              Quitar selección
-            </Button>
-          ) : null}
           {progress ? <p className="text-sm">Subiendo {progress}</p> : null}
         </div>
+        {visible.length > 0 || query.trim().length > 0 ? (
+          <LibraryListTools
+            query={query}
+            onQuery={setQuery}
+            matchIds={matches.map((photo) => photo.id)}
+            pageIds={paged.items.map((photo) => photo.id)}
+            selectedIds={selected}
+            onSelect={setSelected}
+          />
+        ) : null}
         {selected.length > 0 ? (
           <div className="mt-4 flex flex-wrap items-end gap-2 border border-line bg-white/70 p-3">
             <p className="pb-2 text-sm">
@@ -206,15 +210,22 @@ export function PhotosPage() {
                 ))}
               </Select>
             </Field>
-            <Button variant="quiet" disabled={move.isPending} onClick={() => move.mutate()}>
+            <Button variant="quiet" disabled={move.isPending || selected.length > BULK_LIMIT} onClick={() => move.mutate()}>
               Mover
             </Button>
-            <ConfirmButton
-              label="Borrar"
-              question={selected.length === 1 ? "¿Borrar 1 foto?" : `¿Borrar ${selected.length} fotos?`}
-              pending={remove.isPending}
-              onConfirm={() => remove.mutate()}
-            />
+            {selected.length > BULK_LIMIT ? (
+              <Button variant="danger" disabled>
+                Borrar
+              </Button>
+            ) : (
+              <ConfirmButton
+                label="Borrar"
+                question={selected.length === 1 ? "¿Borrar 1 foto?" : `¿Borrar ${selected.length} fotos?`}
+                pending={remove.isPending}
+                onConfirm={() => remove.mutate()}
+              />
+            )}
+            {selected.length > BULK_LIMIT ? <Notice>Elige como mucho 200.</Notice> : null}
           </div>
         ) : null}
         {error ? <div className="mt-3"><Notice>{error}</Notice></div> : null}
@@ -223,7 +234,7 @@ export function PhotosPage() {
             <Notice>No cupieron: {failures.join(", ")}. El límite es 20 MB por archivo.</Notice>
           </div>
         ) : null}
-        {photos.data && visible.length === 0 ? (
+        {photos.data && visible.length === 0 && query.trim().length === 0 ? (
           <div className="mt-8">
             <EmptyState title="Este cajón está vacío">Sube fotos JPEG, PNG o WebP. Cada archivo puede pesar hasta 20 MB.</EmptyState>
           </div>

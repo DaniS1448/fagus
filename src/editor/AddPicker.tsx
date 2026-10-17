@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { formatReference } from "../domain/reference"
 import type { BibleText, Identity, ItemGroup, Photo, PhotoGroup, Quote } from "../domain/models"
+import { fold } from "../library/search"
 import { Button } from "../ui/controls"
 import { KindMark, type MarkKind } from "./marks"
 
@@ -511,8 +512,4 @@ function kindTitle(kind: MarkKind): string {
       return unknown
     }
   }
-}
-
-function fold(value: string): string {
-  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
 }
