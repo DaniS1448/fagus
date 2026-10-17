@@ -464,6 +464,98 @@ function StyleFields({
           Contorno
         </Button>
       )}
+      {style.shadowColor ? (
+        <>
+          <Field label="Sombra">
+            <input
+              type="color"
+              value={style.shadowColor}
+              onChange={(event) => onChange({ ...style, shadowColor: event.target.value })}
+            />
+          </Field>
+          <NumberField
+            label="Opacidad"
+            value={Math.round(style.shadowOpacity * 100)}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(percent) => onChange({ ...style, shadowOpacity: percent / 100 }, "live")}
+            begin={begin}
+            end={end}
+          />
+          <NumberField
+            label="Desenfoque (mm)"
+            value={style.shadowBlurMm}
+            min={0}
+            max={8}
+            step={0.1}
+            onChange={(shadowBlurMm) => onChange({ ...style, shadowBlurMm }, "live")}
+            begin={begin}
+            end={end}
+          />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm">Alcance (mm)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField
+                label="Arriba"
+                value={style.shadowTopMm}
+                min={0}
+                max={8}
+                onChange={(shadowTopMm) => onChange({ ...style, shadowTopMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Derecha"
+                value={style.shadowRightMm}
+                min={0}
+                max={8}
+                onChange={(shadowRightMm) => onChange({ ...style, shadowRightMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Abajo"
+                value={style.shadowBottomMm}
+                min={0}
+                max={8}
+                onChange={(shadowBottomMm) => onChange({ ...style, shadowBottomMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+              <NumberField
+                label="Izquierda"
+                value={style.shadowLeftMm}
+                min={0}
+                max={8}
+                onChange={(shadowLeftMm) => onChange({ ...style, shadowLeftMm }, "live")}
+                begin={begin}
+                end={end}
+              />
+            </div>
+          </div>
+          <Button variant="quiet" onClick={() => onChange({ ...style, shadowColor: null })}>
+            Sin sombra
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="quiet"
+          onClick={() => {
+            const flat = style.shadowTopMm + style.shadowRightMm + style.shadowBottomMm + style.shadowLeftMm + style.shadowBlurMm === 0
+            onChange({
+              ...style,
+              shadowColor: "#1A1814",
+              shadowOpacity: style.shadowOpacity > 0 ? style.shadowOpacity : 0.55,
+              ...(flat
+                ? { shadowBlurMm: 0.3, shadowTopMm: 0.4, shadowRightMm: 0.4, shadowBottomMm: 0.4, shadowLeftMm: 0.4 }
+                : {}),
+            })
+          }}
+        >
+          Sombra
+        </Button>
+      )}
     </div>
   )
 }

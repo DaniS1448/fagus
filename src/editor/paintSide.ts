@@ -4,6 +4,7 @@ import { fontLabel } from "../domain/fonts"
 import { photoPlacement } from "../domain/placement"
 import type { ResolvedElement, ResolvedSide } from "../domain/resolve"
 import { DEFAULT_BLEED_GUIDE_MM } from "../domain/units"
+import { textShadowImage } from "./textShadow"
 
 export type PaintOptions = {
   side: ResolvedSide
@@ -321,6 +322,20 @@ function addFlowingText(
   width: number,
   pxPerMm: number,
 ): Konva.Text {
+  const shadow = textShadowImage(value, style, width, pxPerMm)
+  if (shadow) {
+    group.add(
+      new Konva.Image({
+        image: shadow.canvas,
+        x: x + shadow.offsetX,
+        y: y + shadow.offsetY,
+        width: shadow.width,
+        height: shadow.height,
+        opacity: style.shadowOpacity,
+        listening: false,
+      }),
+    )
+  }
   const text = new Konva.Text({
     text: value,
     x,

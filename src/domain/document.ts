@@ -29,6 +29,13 @@ export const textStyleSchema = z.object({
   letterSpacingMm: z.number().min(-2).max(5),
   strokeColor: optionalHex.default(null),
   strokeWidthMm: clamped(0, 0, 2),
+  shadowColor: optionalHex.default(null),
+  shadowOpacity: clamped(0.55, 0, 1),
+  shadowBlurMm: clamped(0, 0, 8),
+  shadowTopMm: clamped(0, 0, 8),
+  shadowRightMm: clamped(0, 0, 8),
+  shadowBottomMm: clamped(0, 0, 8),
+  shadowLeftMm: clamped(0, 0, 8),
 })
 
 export type TextStyle = z.infer<typeof textStyleSchema>
@@ -184,6 +191,13 @@ export function textStyle(partial?: Partial<TextStyle>): TextStyle {
     letterSpacingMm: 0,
     strokeColor: null,
     strokeWidthMm: 0,
+    shadowColor: null,
+    shadowOpacity: 0.55,
+    shadowBlurMm: 0,
+    shadowTopMm: 0,
+    shadowRightMm: 0,
+    shadowBottomMm: 0,
+    shadowLeftMm: 0,
     ...partial,
   }
 }

@@ -486,8 +486,22 @@ describe("parseSideDocument", () => {
           width: 40,
           height: 80,
           rotation: 0,
-          style: textStyle(),
-          referenceStyle: textStyle(),
+          style: {
+            fontFamily: "libre-baskerville",
+            fontSizeMm: 4.2,
+            lineHeight: 1.25,
+            align: "center",
+            color: "#1A1814",
+            letterSpacingMm: 0,
+          },
+          referenceStyle: {
+            fontFamily: "libre-baskerville",
+            fontSizeMm: 4.2,
+            lineHeight: 1.25,
+            align: "center",
+            color: "#1A1814",
+            letterSpacingMm: 0,
+          },
         },
       ],
     })
@@ -499,6 +513,14 @@ describe("parseSideDocument", () => {
     expect(element.plate.radiusMm).toBe(0)
     expect(element.style.strokeColor).toBeNull()
     expect(element.style.strokeWidthMm).toBe(0)
+    expect(element.style.shadowColor).toBeNull()
+    expect(element.style.shadowOpacity).toBe(0.55)
+    expect(element.style.shadowBlurMm).toBe(0)
+    expect(element.style.shadowTopMm).toBe(0)
+    expect(element.style.shadowRightMm).toBe(0)
+    expect(element.style.shadowBottomMm).toBe(0)
+    expect(element.style.shadowLeftMm).toBe(0)
+    expect(element.referenceStyle.shadowColor).toBeNull()
     expect(parsed.elements).toHaveLength(1)
   })
 
