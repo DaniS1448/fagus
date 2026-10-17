@@ -5,6 +5,7 @@ import { emptySide, parseSideDocument } from "../domain/document"
 import type { LibraryScope } from "../domain/portable"
 import type { BibleText, Design, Identity, Photo, PhotoGroup, Project, Quote } from "../domain/models"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
+import { protectApp } from "./auth"
 import { db, now } from "./db"
 import { exportBundle, exportLibrary, importBundle, importLibrary, PortableError } from "./portable"
 import { bibleGroups, bibleTexts, designs, identities, identityGroups, photoGroups, photos, projects, quoteGroups, quotes } from "./schema"
@@ -28,6 +29,7 @@ import {
 
 export function createApp(): Hono {
   const app = new Hono()
+  protectApp(app)
 
   app.get("/api/health", (c) => c.json({ ok: true }))
 

@@ -17,6 +17,10 @@ Abre http://localhost:5173. Para una copia ya compilada:
 pnpm start
 ```
 
+## Despliegue
+
+En un VPS, con Docker o Dokploy: [instrucciones de despliegue](docs/docker.md).
+
 ## Qué puedes hacer
 
 ### Proyectos

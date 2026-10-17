@@ -1,0 +1,14 @@
+services:
+  fagus:
+    build: .
+    ports:
+      - "4173:4173"
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+    volumes:
+      - fagus-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  fagus-data:
