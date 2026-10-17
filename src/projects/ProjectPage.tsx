@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
-import { ApiError, apiGet, apiJson } from "../api"
+import { ApiError, apiGet, apiJson, downloadFile } from "../api"
 import type { BibleText, Design, Identity, Photo, Project, Quote } from "../domain/models"
 import type { LibrarySnapshot } from "../domain/resolve"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { downloadBlob, slugify } from "../media"
 import { Button, ButtonLink, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { TransferDialog, useTransfer } from "../ui/TransferDialog"
 import { DesignThumb, thumbBox, useDesignImages } from "./DesignThumb"
 
 export function ProjectPage() {
@@ -53,6 +54,7 @@ export function ProjectPage() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [projectName, setProjectName] = useState("")
+  const { transfer, run, close } = useTransfer()
 
   const rename = useMutation({
     mutationFn: () => apiJson<Project>(`/api/projects/${projectId}`, "PATCH", { name: projectName }),
@@ -120,14 +122,12 @@ export function ProjectPage() {
           <ButtonLink to={`/projects/${projectId}/print`}>Componer pliego</ButtonLink>
           <Button
             variant="quiet"
+            disabled={transfer !== null}
             onClick={() => {
-              void fetch(`/api/projects/${projectId}/export`)
-                .then(async (response) => {
-                  if (!response.ok) throw new Error("No se pudo exportar")
-                  const blob = await response.blob()
-                  downloadBlob(blob, `${slugify(project.data?.name ?? "proyecto")}.fagus`)
-                })
-                .catch(() => setError("No se pudo exportar el proyecto"))
+              void run("Exportar proyecto", "preparing", "No se pudo exportar el proyecto", async (onProgress) => {
+                const blob = await downloadFile(`/api/projects/${projectId}/export`, onProgress)
+                downloadBlob(blob, `${slugify(project.data?.name ?? "proyecto")}.fagus`)
+              })
             }}
           >
             Exportar proyecto
@@ -135,6 +135,16 @@ export function ProjectPage() {
         </div>
       </div>
       {project.error ? <Notice>No se encontró el proyecto.</Notice> : null}
+      {transfer ? (
+        <TransferDialog
+          title={transfer.title}
+          phase={transfer.phase}
+          loaded={transfer.loaded}
+          total={transfer.total}
+          error={transfer.error}
+          onClose={close}
+        />
+      ) : null}
       <form
         className="mt-8 grid max-w-3xl gap-3 border border-line bg-white/60 p-4 sm:grid-cols-4"
         onSubmit={(event) => {

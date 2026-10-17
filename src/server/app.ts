@@ -63,12 +63,7 @@ export function createApp(): Hono {
   app.get("/api/projects/:id/export", (c) => {
     const file = exportBundle(c.req.param("id"))
     if (!file) return missing(c, "Proyecto")
-    return new Response(new Uint8Array(file.bytes), {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${file.filename}"`,
-      },
-    })
+    return fileResponse(file.bytes, file.filename)
   })
 
   app.get("/api/projects/:id", (c) => {
@@ -405,12 +400,7 @@ export function createApp(): Hono {
     const parsed = libraryScopeSchema.safeParse(c.req.query("scope"))
     if (!parsed.success) return c.json({ error: "Elige qué biblioteca exportar" }, 400)
     const file = exportLibrary(parsed.data)
-    return new Response(new Uint8Array(file.bytes), {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${file.filename}"`,
-      },
-    })
+    return fileResponse(file.bytes, file.filename)
   })
 
   app.post("/api/library/import", async (c) => {
@@ -848,6 +838,16 @@ function invalid(c: { json: (body: unknown, status?: number) => Response }, erro
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, label: string): Response {
   return c.json({ error: `${label} no encontrado` }, 404)
+}
+
+function fileResponse(bytes: Buffer, filename: string): Response {
+  return new Response(new Uint8Array(bytes), {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(bytes.byteLength),
+    },
+  })
 }
 
 type ImagePayload = {

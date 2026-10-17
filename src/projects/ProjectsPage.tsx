@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router"
-import { ApiError, apiForm, apiGet, apiJson } from "../api"
+import { ApiError, apiGet, apiJson, uploadForm } from "../api"
 import type { Project } from "../domain/models"
 import { LibraryTransfer } from "../library/LibraryTransfer"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { TransferDialog, useTransfer } from "../ui/TransferDialog"
 
 export function ProjectsPage() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ export function ProjectsPage() {
   const [name, setName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { transfer, run, close } = useTransfer()
 
   const create = useMutation({
     mutationFn: () => apiJson<Project>("/api/projects", "POST", { name }),
@@ -24,19 +26,17 @@ export function ProjectsPage() {
     onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo crear"),
   })
 
-  const importProject = useMutation({
-    mutationFn: (file: File) => {
-      const body = new FormData()
-      body.set("file", file)
-      return apiForm<{ projectId: string }>("/api/projects/import", "POST", body)
-    },
-    onSuccess: async (result) => {
-      setError(null)
+  async function importProject(file: File) {
+    const body = new FormData()
+    body.set("file", file)
+    let projectId = ""
+    const ok = await run("Importar proyecto", "uploading", "No se pudo importar", async (onProgress) => {
+      const result = await uploadForm<{ projectId: string }>("/api/projects/import", body, onProgress)
+      projectId = result.projectId
       await queryClient.invalidateQueries({ queryKey: ["projects"] })
-      navigate(`/projects/${result.projectId}`)
-    },
-    onError: (reason) => setError(reason instanceof ApiError ? reason.message : "No se pudo importar"),
-  })
+    })
+    if (ok) navigate(`/projects/${projectId}`)
+  }
 
   return (
     <div className="px-6 py-8 lg:px-10">
@@ -57,7 +57,7 @@ export function ProjectsPage() {
         <Button type="submit" disabled={create.isPending || name.trim().length === 0}>
           Crear proyecto
         </Button>
-        <Button variant="quiet" disabled={importProject.isPending} onClick={() => fileRef.current?.click()}>
+        <Button variant="quiet" disabled={transfer !== null} onClick={() => fileRef.current?.click()}>
           Importar proyecto
         </Button>
         <input
@@ -68,7 +68,7 @@ export function ProjectsPage() {
           onChange={(event) => {
             const file = event.target.files?.[0]
             event.target.value = ""
-            if (file) importProject.mutate(file)
+            if (file) void importProject(file)
           }}
         />
       </form>
@@ -76,6 +76,16 @@ export function ProjectsPage() {
         <LibraryTransfer scope="all" />
       </div>
       {error ? <div className="mt-3"><Notice>{error}</Notice></div> : null}
+      {transfer ? (
+        <TransferDialog
+          title={transfer.title}
+          phase={transfer.phase}
+          loaded={transfer.loaded}
+          total={transfer.total}
+          error={transfer.error}
+          onClose={close}
+        />
+      ) : null}
       <div className="mt-10">
         {projects.isLoading ? <p>Cargando proyectos…</p> : null}
         {projects.error ? <Notice>No se pudieron cargar los proyectos.</Notice> : null}

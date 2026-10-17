@@ -44,6 +44,20 @@ select {
   outline-offset: 2px;
 }
 
+.transfer-indeterminate {
+  width: 35%;
+  animation: transfer-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes transfer-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(380%);
+  }
+}
+
 .cutting-mat {
   background-color: #d5ddd4;
   background-image:
