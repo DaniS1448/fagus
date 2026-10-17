@@ -1,0 +1,78 @@
+import type { SideDocument } from "./document"
+
+export type Project = {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type Design = {
+  id: string
+  projectId: string
+  name: string
+  widthMm: number
+  heightMm: number
+  sides: "single" | "double"
+  front: SideDocument
+  back: SideDocument
+  seed: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type Photo = {
+  id: string
+  name: string
+  mime: string
+  widthPx: number
+  heightPx: number
+  createdAt: number
+}
+
+export type Quote = {
+  id: string
+  body: string
+  attribution: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type BibleText = {
+  id: string
+  book: string
+  chapter: number
+  verseStart: number
+  verseEnd: number | null
+  body: string
+  translation: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type Identity = {
+  id: string
+  kind: "wordmark" | "logo"
+  name: string
+  text: string
+  mime: string | null
+  widthPx: number | null
+  heightPx: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export function designPayload(design: Pick<
+  Design,
+  "name" | "widthMm" | "heightMm" | "sides" | "front" | "back" | "seed"
+>) {
+  return {
+    name: design.name,
+    widthMm: design.widthMm,
+    heightMm: design.heightMm,
+    sides: design.sides,
+    front: design.front,
+    back: design.back,
+    seed: design.seed,
+  }
+}

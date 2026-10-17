@@ -1,0 +1,53 @@
+@import "tailwindcss";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/libre-baskerville/400.css";
+@import "@fontsource/libre-baskerville/700.css";
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/barlow-condensed/500.css";
+
+@theme {
+  --font-sans: "Outfit", sans-serif;
+  --color-bark: #1a1814;
+  --color-bark-soft: #2c2822;
+  --color-mat: #d5ddd4;
+  --color-paper: #f4f0e6;
+  --color-ink: #1f3a2e;
+  --color-mark: #8f2d2d;
+  --color-foam: #eef1ec;
+  --color-line: #d5d8d0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-foam);
+  color: var(--color-bark);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.cutting-mat {
+  background-color: #d5ddd4;
+  background-image:
+    linear-gradient(to right, rgb(31 58 46 / 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(31 58 46 / 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
