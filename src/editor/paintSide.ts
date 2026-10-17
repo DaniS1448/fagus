@@ -253,26 +253,30 @@ function paintLockup(
 ) {
   const pad = padsOf(element.plate, pxPerMm, width)
   const gap = LOCKUP_GAP_MM * pxPerMm
+  const share = (element.textShare ?? 50) / 100
   const innerWidth = Math.max(1, width - pad.left - pad.right)
   const innerHeight = Math.max(1, height - pad.top - pad.bottom)
   const image = element.imageId ? images.get(element.imageId) : undefined
   const imageWidth = image?.naturalWidth || element.imageWidth
   const imageHeight = image?.naturalHeight || element.imageHeight
+  const textSpan = (span: number) => Math.max(1, (span - gap) * share)
+  const logoSpan = (span: number) => Math.max(1, span - gap - textSpan(span))
   paintPlate(group, element.plate, 0, 0, width, height, pxPerMm)
   if (element.layout === "row") {
-    const aspect = imageWidth / Math.max(1, imageHeight)
-    const logoWidth = Math.min(innerWidth * 0.45, innerHeight * aspect, Math.max(1, innerWidth - gap - 1))
+    const textWidth = textSpan(innerWidth)
+    const logoWidth = logoSpan(innerWidth)
     paintContainedImage(group, image, pad.left, pad.top, logoWidth, innerHeight, imageWidth, imageHeight)
     const textX = pad.left + logoWidth + gap
-    const textWidth = Math.max(1, width - pad.right - textX)
     const text = addFlowingText(group, element.text, element.style, textX, 0, textWidth, pxPerMm)
     text.y(pad.top + Math.max(0, (innerHeight - text.height()) / 2))
     return
   }
-  const text = addFlowingText(group, element.text, element.style, pad.left, 0, innerWidth, pxPerMm)
-  const logoHeight = Math.max(1, innerHeight - gap - text.height())
+  const textHeight = textSpan(innerHeight)
+  const logoHeight = logoSpan(innerHeight)
   paintContainedImage(group, image, pad.left, pad.top, innerWidth, logoHeight, imageWidth, imageHeight)
-  text.y(pad.top + logoHeight + gap)
+  const text = addFlowingText(group, element.text, element.style, pad.left, 0, innerWidth, pxPerMm)
+  const textTop = pad.top + logoHeight + gap
+  text.y(textTop + Math.max(0, (textHeight - text.height()) / 2))
 }
 
 function paintContainedImage(

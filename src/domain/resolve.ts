@@ -22,6 +22,7 @@ export type IdentityRecord = {
   id: string
   kind: "wordmark" | "logo" | "lockup"
   layout: "stack" | "row" | null
+  textShare: number | null
   name: string
   text: string
   widthPx: number | null
@@ -90,6 +91,7 @@ export type ResolvedIdentity = Frame & {
   type: "identity"
   kind: "wordmark" | "logo" | "lockup" | "missing"
   layout: "stack" | "row" | null
+  textShare: number | null
   text: string
   imageId: string | null
   imageWidth: number
@@ -217,6 +219,11 @@ function resolveElement(
   }
 }
 
+function storedTextShare(value: number | null): number {
+  if (value == null || !Number.isInteger(value) || value < 20 || value > 80) return 50
+  return value
+}
+
 function resolveIdentity(
   element: Extract<SideDocument["elements"][number], { type: "identity" }>,
   libraries: LibrarySnapshot,
@@ -237,6 +244,7 @@ function resolveIdentity(
       ...shared,
       kind: "missing",
       layout: null,
+      textShare: null,
       text: "",
       imageId: null,
       imageWidth: 1,
@@ -250,6 +258,7 @@ function resolveIdentity(
         ...shared,
         kind: "logo",
         layout: null,
+        textShare: null,
         text: identity.name,
         imageId: identity.id,
         imageWidth: identity.widthPx ?? 1,
@@ -261,6 +270,7 @@ function resolveIdentity(
         ...shared,
         kind: "wordmark",
         layout: null,
+        textShare: null,
         text: identity.text,
         imageId: null,
         imageWidth: 1,
@@ -272,6 +282,7 @@ function resolveIdentity(
         ...shared,
         kind: "lockup",
         layout: identity.layout === "row" ? "row" : "stack",
+        textShare: storedTextShare(identity.textShare),
         text: identity.text,
         imageId: identity.id,
         imageWidth: identity.widthPx ?? 1,

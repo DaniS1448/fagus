@@ -140,6 +140,7 @@ export function EditorPage() {
         id: item.id,
         kind: item.kind,
         layout: item.layout,
+        textShare: item.textShare,
         name: item.name,
         text: item.text,
         widthPx: item.widthPx,

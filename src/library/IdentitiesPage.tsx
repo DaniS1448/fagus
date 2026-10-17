@@ -12,7 +12,14 @@ import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
 import { filterByQuery, listResetKey } from "./search"
 
-type IdentityDraft = { kind: IdentityKind; name: string; text: string; layout: IdentityLayout; groupId: string }
+type IdentityDraft = {
+  kind: IdentityKind
+  name: string
+  text: string
+  layout: IdentityLayout
+  textShare: number
+  groupId: string
+}
 
 export function IdentitiesPage() {
   const queryClient = useQueryClient()
@@ -59,6 +66,7 @@ export function IdentitiesPage() {
               name: input.draft.name,
               text: input.draft.text,
               layout: input.draft.layout,
+              textShare: input.draft.textShare,
               groupId,
             })
           }
@@ -67,6 +75,7 @@ export function IdentitiesPage() {
             kind: "lockup",
             text: input.draft.text,
             layout: input.draft.layout,
+            textShare: input.draft.textShare,
           })
           return single
             ? apiForm<Identity>(`/api/identities/${single.id}`, "PATCH", body)
@@ -109,8 +118,8 @@ export function IdentitiesPage() {
   })
 
   const initial: IdentityDraft = single
-    ? { kind: single.kind, name: single.name, text: single.text, layout: single.layout ?? "stack", groupId: single.groupId ?? "none" }
-    : { kind: mode, name: "", text: "", layout: "stack", groupId: openGroupId(filter) ?? "none" }
+    ? { kind: single.kind, name: single.name, text: single.text, layout: single.layout ?? "stack", textShare: single.textShare ?? 50, groupId: single.groupId ?? "none" }
+    : { kind: mode, name: "", text: "", layout: "stack", textShare: 50, groupId: openGroupId(filter) ?? "none" }
 
   return (
     <LibraryScreen
@@ -270,6 +279,7 @@ function IdentityForm({
           </label>
         </fieldset>
       ) : null}
+      {fieldsFor(draft.kind).layout ? <TextShareField value={draft.textShare} onChange={(textShare) => setDraft({ ...draft, textShare })} /> : null}
       {fieldsFor(draft.kind).file ? (
         <Field label={previewId ? "Sustituir archivo" : "Archivo"}>
           <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
@@ -287,6 +297,17 @@ function IdentityForm({
         ) : null}
       </div>
     </form>
+  )
+}
+
+function TextShareField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <Field label="Proporción del título">
+      <input type="range" min={20} max={80} step={5} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <span className="text-sm text-bark/70">
+        El título ocupa el {value}% y el logo el {100 - value}%.
+      </span>
+    </Field>
   )
 }
 

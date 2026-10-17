@@ -69,6 +69,7 @@ export type Identity = {
   groupId: string | null
   kind: IdentityKind
   layout: IdentityLayout | null
+  textShare: number | null
   name: string
   text: string
   mime: string | null

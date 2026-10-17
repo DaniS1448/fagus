@@ -37,6 +37,7 @@ const libraries: LibrarySnapshot = {
       id: "word",
       kind: "wordmark",
       layout: null,
+      textShare: null,
       name: "Emaus 2027",
       text: "Emaus 2027",
       widthPx: null,
@@ -46,6 +47,7 @@ const libraries: LibrarySnapshot = {
       id: "logo",
       kind: "logo",
       layout: null,
+      textShare: null,
       name: "Logo",
       text: "",
       widthPx: 400,
@@ -55,6 +57,7 @@ const libraries: LibrarySnapshot = {
       id: "lock",
       kind: "lockup",
       layout: "row",
+      textShare: 40,
       name: "Emaus",
       text: "Emaus",
       widthPx: 200,
@@ -244,6 +247,7 @@ describe("resolveDocument", () => {
     expect(lock.text).toBe("Emaus")
     expect(lock.imageId).toBe("lock")
     expect(lock.layout).toBe("row")
+    expect(lock.textShare).toBe(40)
     expect(lock.broken).toBe(false)
   })
 })

@@ -48,6 +48,7 @@ export const bibleInputSchema = z
 
 const identityTitleSchema = z.string().trim().min(1, "Escribe el título").max(80)
 export const identityLayoutSchema = z.enum(["stack", "row"])
+export const identityTextShareSchema = z.number().int().min(20, "El título tiene que ocupar al menos un 20%").max(80, "El título puede ocupar como mucho un 80%")
 
 export const identityWordmarkSchema = z.object({
   kind: z.literal("wordmark"),
@@ -61,12 +62,14 @@ export const identityLockupSchema = z.object({
   name: nameSchema,
   text: identityTitleSchema,
   layout: identityLayoutSchema,
+  textShare: identityTextShareSchema,
   groupId: groupIdSchema,
 })
 
 export const identityLockupFileSchema = z.object({
   text: identityTitleSchema,
   layout: identityLayoutSchema,
+  textShare: identityTextShareSchema,
 })
 
 export const identityLogoPatchSchema = z.object({

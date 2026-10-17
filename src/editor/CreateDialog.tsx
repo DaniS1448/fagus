@@ -196,6 +196,7 @@ function LockupForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("")
   const [text, setText] = useState("")
   const [layout, setLayout] = useState<"stack" | "row">("stack")
+  const [textShare, setTextShare] = useState(50)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
@@ -206,6 +207,7 @@ function LockupForm({ onClose }: { onClose: () => void }) {
         kind: "lockup",
         text,
         layout,
+        textShare,
       })
       return apiForm<Identity>("/api/identities", "POST", body)
     },
@@ -240,6 +242,12 @@ function LockupForm({ onClose }: { onClose: () => void }) {
           Logo a la izquierda, título a la derecha
         </label>
       </fieldset>
+      <Field label="Proporción del título">
+        <input type="range" min={20} max={80} step={5} value={textShare} onChange={(event) => setTextShare(Number(event.target.value))} />
+        <span className="text-sm text-bark/70">
+          El título ocupa el {textShare}% y el logo el {100 - textShare}%.
+        </span>
+      </Field>
       <Field label="Archivo">
         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
       </Field>

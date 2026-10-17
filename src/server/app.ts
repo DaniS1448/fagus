@@ -439,6 +439,7 @@ export function createApp(): Hono {
         groupId: identities.groupId,
         kind: identities.kind,
         layout: identities.layout,
+        textShare: identities.textShare,
         name: identities.name,
         text: identities.text,
         mime: identities.mime,
@@ -464,6 +465,7 @@ export function createApp(): Hono {
         groupId: parsed.data.groupId ?? null,
         kind: "wordmark" as const,
         layout: null,
+        textShare: null,
         name: parsed.data.name,
         text: parsed.data.text,
         mime: null,
@@ -483,13 +485,14 @@ export function createApp(): Hono {
     if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const timestamp = now()
     if (image.kind === "lockup") {
-      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout })
+      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout, textShare: image.textShare })
       if (!parsed.success) return invalid(c, parsed.error)
       const row = {
         id: crypto.randomUUID(),
         groupId: image.groupId,
         kind: "lockup" as const,
         layout: parsed.data.layout,
+        textShare: parsed.data.textShare,
         name: image.name,
         text: parsed.data.text,
         mime: image.mime,
@@ -553,6 +556,7 @@ export function createApp(): Hono {
             name: parsed.data.name,
             text: parsed.data.text,
             layout: parsed.data.layout,
+            textShare: parsed.data.textShare,
             groupId: parsed.data.groupId === undefined ? current.groupId : parsed.data.groupId,
             updatedAt,
           }
@@ -583,13 +587,14 @@ export function createApp(): Hono {
     if (image.groupId && !groupRow("identities", image.groupId)) return missing(c, "Agrupación")
     const updatedAt = now()
     if (storedIdentityKind(current.kind) === "lockup") {
-      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout })
+      const parsed = identityLockupFileSchema.safeParse({ text: image.text, layout: image.layout, textShare: image.textShare })
       if (!parsed.success) return invalid(c, parsed.error)
       const next = {
         name: image.name,
         groupId: image.groupId,
         text: parsed.data.text,
         layout: parsed.data.layout,
+        textShare: parsed.data.textShare,
         mime: image.mime,
         widthPx: image.widthPx,
         heightPx: image.heightPx,
@@ -913,6 +918,7 @@ function toIdentity(row: {
   groupId?: string | null
   kind: string
   layout?: string | null
+  textShare?: number | null
   name: string
   text: string
   mime: string | null
@@ -923,7 +929,13 @@ function toIdentity(row: {
 }): Identity {
   const kind = storedIdentityKind(row.kind)
   const layout = kind === "lockup" ? (row.layout === "row" ? "row" : "stack") : null
-  return { ...row, groupId: row.groupId ?? null, kind, layout }
+  const textShare = kind === "lockup" ? storedTextShare(row.textShare) : null
+  return { ...row, groupId: row.groupId ?? null, kind, layout, textShare }
+}
+
+function storedTextShare(value: number | null | undefined): number {
+  if (value == null || !Number.isInteger(value) || value < 20 || value > 80) return 50
+  return value
 }
 
 function touchProject(projectId: string) {
@@ -967,6 +979,7 @@ type ImagePayload = {
   kind: string | null
   text: string
   layout: string | null
+  textShare: number | null
 }
 
 async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status?: number) => Response }): Promise<ImagePayload | Response> {
@@ -994,6 +1007,7 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
   const kindValue = typeof body.kind === "string" ? body.kind.trim() : ""
   const textValue = typeof body.text === "string" ? body.text.trim() : ""
   const layoutValue = typeof body.layout === "string" ? body.layout.trim() : ""
+  const shareValue = Number(body.textShare)
   return {
     name,
     mime: file.type,
@@ -1005,6 +1019,7 @@ async function readImageForm(c: { req: HonoRequest; json: (body: unknown, status
     kind: kindValue || null,
     text: textValue,
     layout: layoutValue || null,
+    textShare: Number.isInteger(shareValue) ? shareValue : null,
   }
 }
 

@@ -35,7 +35,7 @@ export function imageForm(
   prepared: Awaited<ReturnType<typeof prepareImage>>,
   name: string,
   groupId?: string | null,
-  extra?: { kind?: string; text?: string; layout?: string },
+  extra?: { kind?: string; text?: string; layout?: string; textShare?: number },
 ): FormData {
   const body = new FormData()
   body.set("file", prepared.file)
@@ -47,6 +47,7 @@ export function imageForm(
   if (extra?.kind) body.set("kind", extra.kind)
   if (extra?.text !== undefined) body.set("text", extra.text)
   if (extra?.layout) body.set("layout", extra.layout)
+  if (extra?.textShare !== undefined) body.set("textShare", String(extra.textShare))
   return body
 }
 

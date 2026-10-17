@@ -125,6 +125,7 @@ ensureColumn(
   "ALTER TABLE identities ADD COLUMN group_id TEXT REFERENCES identity_groups(id) ON DELETE SET NULL",
 )
 ensureColumn("identities", "layout", "ALTER TABLE identities ADD COLUMN layout TEXT")
+ensureColumn("identities", "text_share", "ALTER TABLE identities ADD COLUMN text_share INTEGER")
 
 sqlite.pragma("wal_checkpoint(TRUNCATE)")
 
