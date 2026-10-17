@@ -3,6 +3,8 @@ import { useState } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { Quote } from "../domain/models"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextArea, TextInput } from "../ui/controls"
+import { PAGE_SIZE, usePagedList } from "../ui/page"
+import { Pager } from "../ui/Pager"
 import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
 import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
@@ -16,6 +18,7 @@ export function QuotesPage() {
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(quotes.data ?? [], filter)
+  const paged = usePagedList(visible, PAGE_SIZE.library, filter)
   const chosen = (quotes.data ?? []).filter((quote) => selected.includes(quote.id))
   const single = chosen.length === 1 ? chosen[0] : null
 
@@ -84,7 +87,7 @@ export function QuotesPage() {
             </div>
           ) : null}
           <ul className="mt-4 flex flex-col gap-2">
-            {visible.map((quote) => {
+            {paged.items.map((quote) => {
               const on = selected.includes(quote.id)
               return (
                 <li key={quote.id}>
@@ -101,6 +104,7 @@ export function QuotesPage() {
               )
             })}
           </ul>
+          <Pager page={paged.page} pages={paged.pages} onPage={paged.setPage} />
         </>
       }
       form={

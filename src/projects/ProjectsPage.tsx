@@ -5,6 +5,8 @@ import { ApiError, apiGet, apiJson, uploadForm } from "../api"
 import type { Project } from "../domain/models"
 import { LibraryTransfer } from "../library/LibraryTransfer"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { PAGE_SIZE, usePagedList } from "../ui/page"
+import { Pager } from "../ui/Pager"
 import { TransferDialog, useTransfer } from "../ui/TransferDialog"
 
 export function ProjectsPage() {
@@ -15,6 +17,7 @@ export function ProjectsPage() {
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const { transfer, run, close } = useTransfer()
+  const paged = usePagedList(projects.data ?? [], PAGE_SIZE.projects, "projects")
 
   const create = useMutation({
     mutationFn: () => apiJson<Project>("/api/projects", "POST", { name }),
@@ -95,10 +98,11 @@ export function ProjectsPage() {
           </EmptyState>
         ) : null}
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.data?.map((project) => (
+          {paged.items.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
         </ul>
+        <Pager page={paged.page} pages={paged.pages} onPage={paged.setPage} />
       </div>
     </div>
   )

@@ -3,6 +3,8 @@ import { useRef, useState } from "react"
 import { ApiError, apiGet, apiJson } from "../api"
 import type { Photo, PhotoGroup } from "../domain/models"
 import { Button, ConfirmButton, EmptyState, Field, Notice, Select, TextInput } from "../ui/controls"
+import { PAGE_SIZE, usePagedList } from "../ui/page"
+import { Pager } from "../ui/Pager"
 import { LibraryTransfer } from "./LibraryTransfer"
 import { uploadPhotos } from "./uploadPhotos"
 
@@ -27,6 +29,7 @@ export function PhotosPage() {
     if (filter === "none") return photo.groupId == null
     return photo.groupId === filter
   })
+  const paged = usePagedList(visible, PAGE_SIZE.photos, filter)
   const activeGroup = groups.data?.find((group) => group.id === filter) ?? null
   const chosen = photos.data?.filter((photo) => selected.includes(photo.id)) ?? []
   const single = chosen.length === 1 ? chosen[0] : null
@@ -226,7 +229,7 @@ export function PhotosPage() {
           </div>
         ) : null}
         <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {visible.map((photo) => {
+          {paged.items.map((photo) => {
             const on = selected.includes(photo.id)
             return (
               <li key={photo.id}>
@@ -243,6 +246,7 @@ export function PhotosPage() {
             )
           })}
         </ul>
+        <Pager page={paged.page} pages={paged.pages} onPage={paged.setPage} />
       </section>
       <aside className="border-t border-line bg-white/50 px-6 py-8 lg:border-t-0 lg:border-l">
         {single ? (

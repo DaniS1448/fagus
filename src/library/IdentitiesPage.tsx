@@ -4,6 +4,8 @@ import { ApiError, apiForm, apiGet, apiJson } from "../api"
 import type { Identity } from "../domain/models"
 import { imageForm, prepareImage } from "../media"
 import { Button, ConfirmButton, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { PAGE_SIZE, usePagedList } from "../ui/page"
+import { Pager } from "../ui/Pager"
 import { GroupField, GroupShelf, SelectionStrip, inDrawer, openGroupId, type DrawerFilter } from "./groups"
 import { LibraryScreen } from "./LibraryScreen"
 import { LibraryTransfer } from "./LibraryTransfer"
@@ -18,6 +20,7 @@ export function IdentitiesPage() {
   const [creating, setCreating] = useState<"wordmark" | "logo" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const visible = inDrawer(identities.data ?? [], filter)
+  const paged = usePagedList(visible, PAGE_SIZE.library, filter)
   const chosen = (identities.data ?? []).filter((item) => selected.includes(item.id))
   const single = chosen.length === 1 ? chosen[0] : null
   const mode = single?.kind ?? creating ?? "wordmark"
@@ -112,7 +115,7 @@ export function IdentitiesPage() {
             </div>
           ) : null}
           <ul className="mt-4 flex flex-col gap-2">
-            {visible.map((item) => {
+            {paged.items.map((item) => {
               const on = selected.includes(item.id)
               return (
                 <li key={item.id}>
@@ -136,6 +139,7 @@ export function IdentitiesPage() {
               )
             })}
           </ul>
+          <Pager page={paged.page} pages={paged.pages} onPage={paged.setPage} />
         </>
       }
       form={

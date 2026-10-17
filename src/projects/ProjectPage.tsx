@@ -7,6 +7,8 @@ import type { LibrarySnapshot } from "../domain/resolve"
 import { DEFAULT_HEIGHT_MM, DEFAULT_WIDTH_MM } from "../domain/units"
 import { downloadBlob, slugify } from "../media"
 import { Button, ButtonLink, EmptyState, Field, Notice, TextInput } from "../ui/controls"
+import { PAGE_SIZE, usePagedList } from "../ui/page"
+import { Pager } from "../ui/Pager"
 import { TransferDialog, useTransfer } from "../ui/TransferDialog"
 import { DesignThumb, thumbBox, useDesignImages } from "./DesignThumb"
 
@@ -55,6 +57,7 @@ export function ProjectPage() {
   const [editing, setEditing] = useState(false)
   const [projectName, setProjectName] = useState("")
   const { transfer, run, close } = useTransfer()
+  const pagedDesigns = usePagedList(designs.data ?? [], PAGE_SIZE.designs, projectId)
 
   const rename = useMutation({
     mutationFn: () => apiJson<Project>(`/api/projects/${projectId}`, "PATCH", { name: projectName }),
@@ -72,6 +75,7 @@ export function ProjectPage() {
       apiJson<Design>(`/api/projects/${projectId}/designs`, "POST", { name, widthMm, heightMm, sides }),
     onSuccess: async (design) => {
       setError(null)
+      pagedDesigns.setPage(1)
       await queryClient.invalidateQueries({ queryKey: ["designs", projectId] })
       navigate(`/projects/${projectId}/designs/${design.id}`)
     },
@@ -198,17 +202,20 @@ export function ProjectPage() {
           </EmptyState>
         ) : null}
         {designs.data && designs.data.length > 0 ? (
-          <ul className="cutting-mat flex w-fit max-w-full flex-wrap items-end gap-x-4 gap-y-5 px-4 py-4">
-            {designs.data.map((design) => (
-              <DesignCard
-                key={design.id}
-                design={design}
-                projectId={projectId}
-                libraries={libraries}
-                images={images}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="cutting-mat flex w-fit max-w-full flex-wrap items-end gap-x-4 gap-y-5 px-4 py-4">
+              {pagedDesigns.items.map((design) => (
+                <DesignCard
+                  key={design.id}
+                  design={design}
+                  projectId={projectId}
+                  libraries={libraries}
+                  images={images}
+                />
+              ))}
+            </ul>
+            <Pager page={pagedDesigns.page} pages={pagedDesigns.pages} onPage={pagedDesigns.setPage} />
+          </>
         ) : null}
       </div>
     </div>
