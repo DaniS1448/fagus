@@ -63,18 +63,75 @@ export function snapValue(value: number, targets: readonly number[], threshold: 
   return best
 }
 
+export type AlignLine = {
+  axis: "x" | "y"
+  at: number
+}
+
+export type AlignSnap = {
+  x: number
+  y: number
+  lines: AlignLine[]
+}
+
 export function snapFrame(
   frame: { x: number; y: number; width: number; height: number },
   pageWidth: number,
   pageHeight: number,
   threshold = 0.6,
 ): { x: number; y: number } {
-  const xTargets = [0, (pageWidth - frame.width) / 2, pageWidth - frame.width]
-  const yTargets = [0, (pageHeight - frame.height) / 2, pageHeight - frame.height]
-  return {
-    x: snapValue(frame.x, xTargets, threshold),
-    y: snapValue(frame.y, yTargets, threshold),
+  const aligned = alignFrame(frame, { width: pageWidth, height: pageHeight }, [], threshold)
+  return { x: aligned.x, y: aligned.y }
+}
+
+export function alignFrame(
+  frame: { x: number; y: number; width: number; height: number },
+  page: { width: number; height: number },
+  others: readonly { x: number; y: number; width: number; height: number }[],
+  threshold = 1,
+): AlignSnap {
+  const xTargets = [0, page.width / 2, page.width]
+  const yTargets = [0, page.height / 2, page.height]
+  for (const other of others) {
+    xTargets.push(other.x, other.x + other.width / 2, other.x + other.width)
+    yTargets.push(other.y, other.y + other.height / 2, other.y + other.height)
   }
+  const x = snapEdge(frame.x, frame.width, xTargets, threshold)
+  const y = snapEdge(frame.y, frame.height, yTargets, threshold)
+  const lines: AlignLine[] = [
+    ...matchedEdges(x, frame.width, xTargets).map((at) => ({ axis: "x" as const, at })),
+    ...matchedEdges(y, frame.height, yTargets).map((at) => ({ axis: "y" as const, at })),
+  ]
+  return { x, y, lines }
+}
+
+function snapEdge(start: number, size: number, targets: readonly number[], threshold: number): number {
+  const offsets = [0, size / 2, size]
+  let bestStart = start
+  let bestDistance = threshold
+  let found = false
+  for (const target of targets) {
+    for (const offset of offsets) {
+      const next = target - offset
+      const distance = Math.abs(start - next)
+      if (distance < bestDistance || (distance === bestDistance && !found)) {
+        bestDistance = distance
+        bestStart = next
+        found = true
+      }
+    }
+  }
+  return found ? bestStart : start
+}
+
+function matchedEdges(start: number, size: number, targets: readonly number[]): number[] {
+  const offsets = [0, size / 2, size]
+  const found: number[] = []
+  for (const target of targets) {
+    const hit = offsets.some((offset) => Math.abs(start + offset - target) <= 0.05)
+    if (hit && !found.includes(target)) found.push(target)
+  }
+  return found
 }
 
 export function snapAngle(degrees: number): number {

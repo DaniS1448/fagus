@@ -1,6 +1,6 @@
 import Konva from "konva"
 import { useLayoutEffect, useRef } from "react"
-import { snapAngle, snapFrame } from "../domain/placement"
+import { alignFrame, snapAngle, type AlignLine } from "../domain/placement"
 import type { ResolvedSide } from "../domain/resolve"
 import { paintContent } from "./paintSide"
 
@@ -59,6 +59,7 @@ export function BookmarkStage(props: StageProps) {
     paintContent(layer, props)
     bindElements(layer, propsRef)
     attachTransformer(layer, propsRef.current.selectedId, props.pxPerMm)
+    drawAlignGuides(layer, restingLines(props), props)
     layer.batchDraw()
   }, [props.side, props.images, props.guides, props.widthMm, props.heightMm, props.pxPerMm])
 
@@ -66,8 +67,9 @@ export function BookmarkStage(props: StageProps) {
     const layer = stageRef.current?.getLayers()[0]
     if (!layer) return
     attachTransformer(layer, props.selectedId, props.pxPerMm)
+    drawAlignGuides(layer, restingLines(props), props)
     layer.batchDraw()
-  }, [props.selectedId, props.pxPerMm])
+  }, [props.selectedId, props.pxPerMm, props.side])
 
   const ruler = 24
   const pageWidth = Math.max(1, Math.round(props.widthMm * props.pxPerMm))
@@ -95,19 +97,62 @@ function bindElements(layer: Konva.Layer, propsRef: { current: StageProps }) {
       event.cancelBubble = true
       propsRef.current.onSelect(node.id())
     })
+    node.dragBoundFunc((pos) => boundDrag(pos, node, propsRef.current))
     node.on("dragstart transformstart", () => propsRef.current.onGestureStart())
+    node.on("dragmove", () => {
+      drawAlignGuides(layer, node.getAttr("alignLines"), propsRef.current)
+    })
     node.on("dragend transformend", () => {
+      clearAlignGuides(layer)
       const frame = readFrame(node, propsRef.current)
       propsRef.current.onCommitFrame(node.id(), frame)
     })
   })
 }
 
+function boxOf(group: Konva.Group, pxPerMm: number): { width: number; height: number } {
+  const width = Math.max(4, (Number(group.getAttr("widthPx")) * Math.abs(group.scaleX())) / pxPerMm)
+  const height = Math.max(4, (Number(group.getAttr("heightPx")) * Math.abs(group.scaleY())) / pxPerMm)
+  return { width, height }
+}
+
+function alignNode(
+  frame: { x: number; y: number; width: number; height: number },
+  id: string,
+  props: StageProps,
+  threshold?: number,
+) {
+  const others = props.side.elements
+    .filter((element) => element.id !== id)
+    .map((element) => ({ x: element.x, y: element.y, width: element.width, height: element.height }))
+  return alignFrame(frame, { width: props.widthMm, height: props.heightMm }, others, threshold)
+}
+
+function restingLines(props: StageProps): AlignLine[] {
+  if (!props.selectedId) return []
+  const element = props.side.elements.find((item) => item.id === props.selectedId)
+  if (!element) return []
+  return alignNode(element, element.id, props, 0.05).lines
+}
+
+function boundDrag(pos: { x: number; y: number }, group: Konva.Group, props: StageProps): { x: number; y: number } {
+  const { width, height } = boxOf(group, props.pxPerMm)
+  const raw = {
+    x: pos.x / props.pxPerMm - width / 2,
+    y: pos.y / props.pxPerMm - height / 2,
+    width,
+    height,
+  }
+  const aligned = alignNode(raw, group.id(), props)
+  group.setAttr("alignLines", aligned.lines)
+  return {
+    x: (aligned.x + width / 2) * props.pxPerMm,
+    y: (aligned.y + height / 2) * props.pxPerMm,
+  }
+}
+
 function readFrame(group: Konva.Group, props: StageProps): Frame {
-  const widthPx = Number(group.getAttr("widthPx")) * Math.abs(group.scaleX())
-  const heightPx = Number(group.getAttr("heightPx")) * Math.abs(group.scaleY())
-  const width = Math.max(4, widthPx / props.pxPerMm)
-  const height = Math.max(4, heightPx / props.pxPerMm)
+  const { width, height } = boxOf(group, props.pxPerMm)
   const centerX = group.x() / props.pxPerMm
   const centerY = group.y() / props.pxPerMm
   const raw = {
@@ -117,8 +162,70 @@ function readFrame(group: Konva.Group, props: StageProps): Frame {
     height,
     rotation: snapAngle(group.rotation()),
   }
-  const snapped = snapFrame(raw, props.widthMm, props.heightMm)
-  return { ...raw, x: snapped.x, y: snapped.y }
+  const aligned = alignNode(raw, group.id(), props)
+  return { ...raw, x: aligned.x, y: aligned.y }
+}
+
+const ALIGN_GUIDE = "#8F2D2D"
+
+function drawAlignGuides(layer: Konva.Layer, lines: unknown, props: StageProps) {
+  const guides = linesOf(lines)
+  const group = guideGroup(layer)
+  group.destroyChildren()
+  const px = props.pxPerMm
+  const width = props.widthMm * px
+  const height = props.heightMm * px
+  for (const line of guides) {
+    const at = line.at * px
+    const points = line.axis === "x" ? [at, 0, at, height] : [0, at, width, at]
+    group.add(
+      new Konva.Line({
+        points,
+        stroke: "#F4F0E6",
+        strokeWidth: 3,
+        listening: false,
+        perfectDrawEnabled: false,
+      }),
+    )
+    group.add(
+      new Konva.Line({
+        points,
+        stroke: ALIGN_GUIDE,
+        strokeWidth: 1,
+        listening: false,
+        perfectDrawEnabled: false,
+      }),
+    )
+  }
+  group.moveToTop()
+  layer.findOne("#transformer")?.moveToTop()
+  layer.batchDraw()
+}
+
+function guideGroup(layer: Konva.Layer): Konva.Group {
+  const found = layer.findOne("#align-guides")
+  if (found instanceof Konva.Group) return found
+  const created = new Konva.Group({ id: "align-guides", listening: false })
+  layer.add(created)
+  return created
+}
+
+function linesOf(value: unknown): AlignLine[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((line) => {
+    if (!line || typeof line !== "object") return []
+    const record = line as { axis?: unknown; at?: unknown }
+    if ((record.axis === "x" || record.axis === "y") && typeof record.at === "number") {
+      return [{ axis: record.axis, at: record.at }]
+    }
+    return []
+  })
+}
+
+function clearAlignGuides(layer: Konva.Layer) {
+  const group = layer.findOne("#align-guides")
+  if (group instanceof Konva.Group) group.destroyChildren()
+  layer.batchDraw()
 }
 
 function attachTransformer(layer: Konva.Layer, selectedId: string | null, pxPerMm: number) {

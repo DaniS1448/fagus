@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { apiGet, apiJson } from "../api"
 import { buildPdf } from "../domain/pdf"
+import { parsedDesign } from "../domain/document"
 import { designPayload, type BibleText, type Design, type Identity, type ItemGroup, type Photo, type PhotoGroup, type Quote } from "../domain/models"
 import { mixSeed } from "../domain/random"
 import { resolveDocument, type LibrarySnapshot } from "../domain/resolve"
@@ -22,7 +23,7 @@ export function EditorPage() {
   const { projectId = "", designId = "" } = useParams()
   const designQuery = useQuery({
     queryKey: ["design", designId],
-    queryFn: () => apiGet<Design>(`/api/designs/${designId}`),
+    queryFn: async () => parsedDesign(await apiGet<Design>(`/api/designs/${designId}`)),
   })
   const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
   const groups = useQuery({ queryKey: ["photo-groups"], queryFn: () => apiGet<PhotoGroup[]>("/api/photo-groups") })

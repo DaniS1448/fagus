@@ -7,16 +7,45 @@ export const bookmarkFontSchema = z.enum([
   "barlow-condensed",
 ])
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
+function clamped(fallback: number, min: number, max: number) {
+  return z.preprocess((value) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+    return Math.min(max, Math.max(min, value))
+  }, z.number())
+}
+
+const optionalHex = z.preprocess((value) => {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : null
+}, hexColor.nullable())
+
 export const textStyleSchema = z.object({
   fontFamily: bookmarkFontSchema,
   fontSizeMm: z.number().positive().max(40),
   lineHeight: z.number().min(0.8).max(3),
   align: z.enum(["left", "center", "right"]),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  color: hexColor,
   letterSpacingMm: z.number().min(-2).max(5),
+  strokeColor: optionalHex.default(null),
+  strokeWidthMm: clamped(0, 0, 2),
 })
 
 export type TextStyle = z.infer<typeof textStyleSchema>
+
+export const plateSchema = z
+  .object({
+    color: optionalHex.default(null),
+    opacity: clamped(1, 0, 1),
+    paddingMm: clamped(1.5, 0, 8),
+  })
+  .default({ color: null, opacity: 1, paddingMm: 1.5 })
+
+export type Plate = z.infer<typeof plateSchema>
+
+export function emptyPlate(): Plate {
+  return { color: null, opacity: 1, paddingMm: 1.5 }
+}
 
 const frameFields = {
   id: z.string().min(1),
@@ -53,6 +82,7 @@ export const quoteElementSchema = z.object({
   poolIds: z.array(z.string()),
   style: textStyleSchema,
   gapMm: gapMmSchema,
+  plate: plateSchema,
   ...frameFields,
 })
 
@@ -65,6 +95,7 @@ export const bibleElementSchema = z.object({
   style: textStyleSchema,
   referenceStyle: textStyleSchema,
   gapMm: gapMmSchema,
+  plate: plateSchema,
   ...frameFields,
 })
 
@@ -72,6 +103,7 @@ export const identityElementSchema = z.object({
   type: z.literal("identity"),
   identityId: z.string().min(1),
   style: textStyleSchema,
+  plate: plateSchema,
   ...frameFields,
   ...fitFields,
 })
@@ -108,6 +140,14 @@ export function parseSideDocument(value: unknown): SideDocument {
   return emptySide()
 }
 
+export function parsedDesign<T extends { front: unknown; back: unknown }>(design: T): T & { front: SideDocument; back: SideDocument } {
+  return {
+    ...design,
+    front: parseSideDocument(design.front),
+    back: parseSideDocument(design.back),
+  }
+}
+
 export function textStyle(partial?: Partial<TextStyle>): TextStyle {
   return {
     fontFamily: "libre-baskerville",
@@ -116,6 +156,8 @@ export function textStyle(partial?: Partial<TextStyle>): TextStyle {
     align: "center",
     color: "#1A1814",
     letterSpacingMm: 0,
+    strokeColor: null,
+    strokeWidthMm: 0,
     ...partial,
   }
 }
@@ -153,6 +195,7 @@ export function createQuoteElement(pageWidth: number, pageHeight: number): Quote
     rotation: 0,
     style: textStyle(),
     gapMm: 2,
+    plate: emptyPlate(),
   }
 }
 
@@ -177,6 +220,7 @@ export function createBibleElement(pageWidth: number, pageHeight: number): Bible
       fontSizeMm: 2.6,
     }),
     gapMm: 2,
+    plate: emptyPlate(),
   }
 }
 
@@ -202,6 +246,7 @@ export function createIdentityElement(
       offsetX: 0,
       offsetY: 0,
       style: textStyle({ fontFamily: "barlow-condensed", fontSizeMm: 3.2 }),
+      plate: emptyPlate(),
     }
   }
 
@@ -226,6 +271,7 @@ export function createIdentityElement(
       letterSpacingMm: 0.15,
       color: "#1A1814",
     }),
+    plate: emptyPlate(),
   }
 }
 

@@ -1,5 +1,5 @@
 import Konva from "konva"
-import type { TextStyle } from "../domain/document"
+import type { Plate, TextStyle } from "../domain/document"
 import { fontLabel } from "../domain/fonts"
 import { photoPlacement } from "../domain/placement"
 import type { ResolvedElement, ResolvedSide } from "../domain/resolve"
@@ -141,16 +141,20 @@ function paintQuote(
 ) {
   const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
   const attribution = attributionLine(element.attribution)
-  if (!attribution) return
-  addFlowingText(
-    group,
-    attribution,
-    { ...element.style, fontSizeMm: element.style.fontSizeMm * 0.78 },
-    0,
-    body.height() + element.gapMm * pxPerMm,
-    width,
-    pxPerMm,
-  )
+  let bottom = body.height()
+  if (attribution) {
+    const line = addFlowingText(
+      group,
+      attribution,
+      { ...element.style, fontSizeMm: element.style.fontSizeMm * 0.78 },
+      0,
+      body.height() + element.gapMm * pxPerMm,
+      width,
+      pxPerMm,
+    )
+    bottom = line.y() + line.height()
+  }
+  paintPlate(group, element.plate, 0, 0, width, bottom, pxPerMm)
 }
 
 function paintBible(
@@ -160,16 +164,20 @@ function paintBible(
   pxPerMm: number,
 ) {
   const body = addFlowingText(group, element.text, element.style, 0, 0, width, pxPerMm)
-  if (!element.showReference || !element.reference) return
-  addFlowingText(
-    group,
-    element.reference,
-    element.referenceStyle,
-    0,
-    body.height() + element.gapMm * pxPerMm,
-    width,
-    pxPerMm,
-  )
+  let bottom = body.height()
+  if (element.showReference && element.reference) {
+    const line = addFlowingText(
+      group,
+      element.reference,
+      element.referenceStyle,
+      0,
+      body.height() + element.gapMm * pxPerMm,
+      width,
+      pxPerMm,
+    )
+    bottom = line.y() + line.height()
+  }
+  paintPlate(group, element.plate, 0, 0, width, bottom, pxPerMm)
 }
 
 function paintIdentity(
@@ -181,6 +189,20 @@ function paintIdentity(
   images: ReadonlyMap<string, HTMLImageElement>,
 ) {
   if (element.kind === "logo") {
+    const image = element.imageId ? images.get(element.imageId) : undefined
+    if (image) {
+      const placed = photoPlacement({
+        frameWidth: width,
+        frameHeight: height,
+        imageWidth: image.naturalWidth || element.imageWidth,
+        imageHeight: image.naturalHeight || element.imageHeight,
+        fit: element.fit,
+        scale: element.scale,
+        offsetX: element.offsetX,
+        offsetY: element.offsetY,
+      })
+      paintPlate(group, element.plate, placed.x, placed.y, placed.width, placed.height, pxPerMm)
+    }
     paintRaster(group, element.imageId, element, width, height, images)
     return
   }
@@ -188,6 +210,7 @@ function paintIdentity(
   const text = addText(group, element.text, element.style, 0, 0, width, height, pxPerMm)
   const used = text.height()
   text.y(Math.max(0, (height - used) / 2))
+  paintPlate(group, element.plate, 0, text.y(), width, used, pxPerMm)
 }
 
 function addFlowingText(
@@ -212,6 +235,7 @@ function addFlowingText(
     letterSpacing: style.letterSpacingMm * pxPerMm,
     wrap: "word",
     listening: false,
+    ...strokeOf(style, pxPerMm),
   })
   group.add(text)
   return text
@@ -241,9 +265,43 @@ function addText(
     letterSpacing: style.letterSpacingMm * pxPerMm,
     wrap: "word",
     listening: false,
+    ...strokeOf(style, pxPerMm),
   })
   group.add(text)
   return text
+}
+
+function strokeOf(style: TextStyle, pxPerMm: number): { stroke?: string; strokeWidth?: number; fillAfterStrokeEnabled?: boolean } {
+  if (!style.strokeColor || style.strokeWidthMm <= 0) return {}
+  return {
+    stroke: style.strokeColor,
+    strokeWidth: style.strokeWidthMm * pxPerMm,
+    fillAfterStrokeEnabled: true,
+  }
+}
+
+function paintPlate(
+  group: Konva.Group,
+  plate: Plate,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  pxPerMm: number,
+) {
+  if (!plate?.color || plate.opacity <= 0 || width <= 0 || height <= 0) return
+  const pad = plate.paddingMm * pxPerMm
+  const rect = new Konva.Rect({
+    x: x - pad,
+    y: y - pad,
+    width: width + pad * 2,
+    height: height + pad * 2,
+    fill: plate.color,
+    opacity: plate.opacity,
+    listening: false,
+  })
+  group.add(rect)
+  rect.moveToBottom()
 }
 
 function paintBroken(group: Konva.Group, width: number, height: number) {

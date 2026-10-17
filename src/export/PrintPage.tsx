@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { apiGet, apiJson } from "../api"
+import { parsedDesign } from "../domain/document"
 import type { BibleText, Design, Identity, Photo, Project, Quote } from "../domain/models"
 import type { FlipEdge } from "../domain/impose"
 import type { Orientation, PaperName } from "../domain/units"
@@ -36,7 +37,7 @@ export function PrintPage() {
   })
   const designs = useQuery({
     queryKey: ["designs", projectId],
-    queryFn: () => apiGet<Design[]>(`/api/projects/${projectId}/designs`),
+    queryFn: async () => (await apiGet<Design[]>(`/api/projects/${projectId}/designs`)).map(parsedDesign),
   })
   const photos = useQuery({ queryKey: ["photos"], queryFn: () => apiGet<Photo[]>("/api/photos") })
   const quotes = useQuery({ queryKey: ["quotes"], queryFn: () => apiGet<Quote[]>("/api/quotes") })

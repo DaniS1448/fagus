@@ -1,4 +1,4 @@
-import type { BookmarkElement, TextStyle } from "../domain/document"
+import { emptyPlate, type BookmarkElement, type Plate, type TextStyle } from "../domain/document"
 import { BOOKMARK_FONTS } from "../domain/fonts"
 import type { BibleText, Identity, Photo, Quote } from "../domain/models"
 import type { ResolvedElement } from "../domain/resolve"
@@ -181,6 +181,7 @@ function ElementFields({
               onPatch(() => ({ ...element, mode: "fixed", quoteId: resolved.sourceId }))
             }}
           />
+          <PlateFields plate={element.plate} onChange={(plate, mode) => onPatch(() => ({ ...element, plate }), mode)} begin={begin} end={end} />
           <StyleFields style={element.style} onChange={(style, mode) => onPatch(() => ({ ...element, style }), mode)} begin={begin} end={end} />
           <NumberField
             label="Separación (mm)"
@@ -245,6 +246,7 @@ function ElementFields({
               onPatch(() => ({ ...element, mode: "fixed", bibleTextId: resolved.sourceId }))
             }}
           />
+          <PlateFields plate={element.plate} onChange={(plate, mode) => onPatch(() => ({ ...element, plate }), mode)} begin={begin} end={end} />
           <StyleFields label="Texto" style={element.style} onChange={(style, mode) => onPatch(() => ({ ...element, style }), mode)} begin={begin} end={end} />
           <StyleFields
             label="Referencia"
@@ -280,6 +282,7 @@ function ElementFields({
               ))}
             </Select>
           </Field>
+          <PlateFields plate={element.plate} onChange={(plate, mode) => onPatch(() => ({ ...element, plate }), mode)} begin={begin} end={end} />
           {current?.kind === "logo" ? (
             <FitFields element={element} onPatch={onPatch} begin={begin} end={end} />
           ) : (
@@ -433,6 +436,86 @@ function StyleFields({
       <Field label="Color">
         <input type="color" value={style.color} onChange={(event) => onChange({ ...style, color: event.target.value })} />
       </Field>
+      {style.strokeColor ? (
+        <>
+          <Field label="Contorno">
+            <input
+              type="color"
+              value={style.strokeColor}
+              onChange={(event) => onChange({ ...style, strokeColor: event.target.value })}
+            />
+          </Field>
+          <NumberField
+            label="Grosor (mm)"
+            value={style.strokeWidthMm}
+            min={0}
+            max={2}
+            step={0.1}
+            onChange={(strokeWidthMm) => onChange({ ...style, strokeWidthMm }, "live")}
+            begin={begin}
+            end={end}
+          />
+          <Button variant="quiet" onClick={() => onChange({ ...style, strokeColor: null, strokeWidthMm: 0 })}>
+            Sin contorno
+          </Button>
+        </>
+      ) : (
+        <Button variant="quiet" onClick={() => onChange({ ...style, strokeColor: "#F4F0E6", strokeWidthMm: style.strokeWidthMm || 0.4 })}>
+          Contorno
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function PlateFields({
+  plate,
+  onChange,
+  begin,
+  end,
+}: {
+  plate: Plate
+  onChange: (plate: Plate, mode?: "commit" | "live") => void
+  begin: () => void
+  end: () => void
+}) {
+  const current = plate ?? emptyPlate()
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <h3 className="text-sm">Fondo del bloque</h3>
+      {current.color ? (
+        <>
+          <Field label="Fondo">
+            <input type="color" value={current.color} onChange={(event) => onChange({ ...current, color: event.target.value })} />
+          </Field>
+          <NumberField
+            label="Opacidad"
+            value={Math.round(current.opacity * 100)}
+            min={0}
+            max={100}
+            step={1}
+            onChange={(percent) => onChange({ ...current, opacity: percent / 100 }, "live")}
+            begin={begin}
+            end={end}
+          />
+          <NumberField
+            label="Margen (mm)"
+            value={current.paddingMm}
+            min={0}
+            max={8}
+            onChange={(paddingMm) => onChange({ ...current, paddingMm }, "live")}
+            begin={begin}
+            end={end}
+          />
+          <Button variant="quiet" onClick={() => onChange({ ...current, color: null })}>
+            Sin fondo
+          </Button>
+        </>
+      ) : (
+        <Button variant="quiet" onClick={() => onChange({ ...current, color: "#F4F0E6", opacity: current.opacity || 0.92 })}>
+          Fondo
+        </Button>
+      )}
     </div>
   )
 }

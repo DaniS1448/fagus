@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { emptySide, textStyle, type SideDocument } from "./document"
+import { emptyPlate, emptySide, textStyle, type SideDocument } from "./document"
 import { includedLibraries, remapGroupId, remapSide, selectionForDesigns } from "./portable"
 
 function quoteSide(mode: "fixed" | "pool", quoteId: string | null, poolIds: string[]): SideDocument {
@@ -19,6 +19,7 @@ function quoteSide(mode: "fixed" | "pool", quoteId: string | null, poolIds: stri
         rotation: 0,
         style: textStyle(),
         gapMm: 2,
+        plate: emptyPlate(),
       },
     ],
   }

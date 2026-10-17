@@ -3,6 +3,7 @@ import type { BookmarkElement, SideDocument } from "../domain/document"
 import type { Design } from "../domain/models"
 
 export type SideName = "front" | "back"
+export type LayerPlace = "above" | "below"
 
 type Frame = {
   x: number
@@ -32,6 +33,7 @@ type EditorState = {
   commitFrame: (id: string, frame: Frame) => void
   removeSelected: () => void
   reorder: (id: string, direction: "front" | "back") => void
+  moveLayer: (id: string, overId: string, place: LayerPlace) => void
   undo: () => void
   redo: () => void
 }
@@ -162,6 +164,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return withSide(design, get().side, { ...document, elements })
     })
   },
+  moveLayer: (id, overId, place) => {
+    get().commit((design) => {
+      const document = sideDocument(design, get().side)
+      const elements = placeLayer(document.elements, id, overId, place)
+      if (!elements) return design
+      return withSide(design, get().side, { ...document, elements })
+    })
+  },
   undo: () => {
     gestureBase = null
     const { past, draft, future } = get()
@@ -177,6 +187,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ draft: next, past: pushHistory(past, draft), future: future.slice(1) })
   },
 }))
+
+export function placeLayer<T extends { id: string }>(
+  elements: readonly T[],
+  id: string,
+  overId: string,
+  place: LayerPlace,
+): T[] | null {
+  if (id === overId) return null
+  const next = elements.slice()
+  const from = next.findIndex((element) => element.id === id)
+  if (from < 0) return null
+  const [item] = next.splice(from, 1)
+  if (!item) return null
+  let to = next.findIndex((element) => element.id === overId)
+  if (to < 0) return null
+  switch (place) {
+    case "above":
+      to += 1
+      break
+    case "below":
+      break
+    default: {
+      const unknown: never = place
+      return unknown
+    }
+  }
+  next.splice(to, 0, item)
+  if (next.every((element, index) => element.id === elements[index]?.id)) return null
+  return next
+}
 
 export function activeDocument(design: Design, side: SideName): SideDocument {
   return sideDocument(design, side)

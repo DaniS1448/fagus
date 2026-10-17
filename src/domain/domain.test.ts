@@ -1,8 +1,8 @@
 import { PDFDocument } from "pdf-lib"
 import { describe, expect, it } from "vitest"
-import { emptySide, parseSideDocument, textStyle, type SideDocument } from "./document"
+import { emptyPlate, emptySide, parseSideDocument, textStyle, type SideDocument } from "./document"
 import { impose, mirrorAxis } from "./impose"
-import { photoPlacement, snapAngle, snapFrame } from "./placement"
+import { alignFrame, photoPlacement, snapAngle, snapFrame } from "./placement"
 import { buildPdf } from "./pdf"
 import { mixSeed } from "./random"
 import { resolveDocument, type LibrarySnapshot } from "./resolve"
@@ -72,6 +72,7 @@ function quoteDocument(
         rotation: 0,
         style: textStyle(),
         gapMm: 2,
+        plate: emptyPlate(),
         ...partial,
       },
     ],
@@ -100,6 +101,7 @@ describe("resolveDocument", () => {
             style: textStyle(),
             referenceStyle: textStyle(),
             gapMm: 2,
+            plate: emptyPlate(),
           },
         ],
       },
@@ -165,6 +167,7 @@ describe("resolveDocument", () => {
             offsetX: 0,
             offsetY: 0,
             style: textStyle(),
+            plate: emptyPlate(),
           },
           {
             id: "id-2",
@@ -180,6 +183,7 @@ describe("resolveDocument", () => {
             offsetX: 0,
             offsetY: 0,
             style: textStyle(),
+            plate: emptyPlate(),
           },
         ],
       },
@@ -255,6 +259,13 @@ describe("snap", () => {
   it("snaps a frame to the page center and an angle to a right angle", () => {
     const snapped = snapFrame({ x: 14.7, y: 40, width: 20, height: 10 }, 50, 155)
     expect(snapped.x).toBeCloseTo(15)
+    const aligned = alignFrame(
+      { x: 9.6, y: 20, width: 10, height: 8 },
+      { width: 50, height: 155 },
+      [{ x: 12, y: 40, width: 6, height: 10 }],
+    )
+    expect(aligned.x).toBeCloseTo(10)
+    expect(aligned.lines).toEqual([{ axis: "x", at: 15 }])
     expect(snapAngle(2)).toBe(0)
     expect(snapAngle(88)).toBe(90)
   })
@@ -369,6 +380,9 @@ describe("parseSideDocument", () => {
     const element = parsed.elements[0]
     if (element?.type !== "bible") throw new Error("shape")
     expect(element.gapMm).toBe(2)
+    expect(element.plate.color).toBeNull()
+    expect(element.style.strokeColor).toBeNull()
+    expect(element.style.strokeWidthMm).toBe(0)
     expect(parsed.elements).toHaveLength(1)
   })
 })

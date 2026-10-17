@@ -1,4 +1,4 @@
-import type { SideDocument, TextStyle } from "./document"
+import type { Plate, SideDocument, TextStyle } from "./document"
 import { formatReference } from "./reference"
 import { mixSeed, pickIndex } from "./random"
 
@@ -67,6 +67,7 @@ export type ResolvedQuote = Frame & {
   attribution: string
   style: TextStyle
   gapMm: number
+  plate: Plate
   broken: boolean
   sourceId: string | null
 }
@@ -79,6 +80,7 @@ export type ResolvedBible = Frame & {
   style: TextStyle
   referenceStyle: TextStyle
   gapMm: number
+  plate: Plate
   broken: boolean
   sourceId: string | null
 }
@@ -95,6 +97,7 @@ export type ResolvedIdentity = Frame & {
   offsetX: number
   offsetY: number
   style: TextStyle
+  plate: Plate
   broken: boolean
 }
 
@@ -177,6 +180,7 @@ function resolveElement(
         attribution: chosen?.attribution ?? "",
         style: element.style,
         gapMm: element.gapMm,
+        plate: element.plate,
         broken: !chosen,
         sourceId: chosen?.id ?? null,
       }
@@ -197,6 +201,7 @@ function resolveElement(
         style: element.style,
         referenceStyle: element.referenceStyle,
         gapMm: element.gapMm,
+        plate: element.plate,
         broken: !chosen,
         sourceId: chosen?.id ?? null,
       }
@@ -223,6 +228,7 @@ function resolveIdentity(
     offsetX: element.offsetX,
     offsetY: element.offsetY,
     style: element.style,
+    plate: element.plate,
   }
   if (!identity) {
     return {
