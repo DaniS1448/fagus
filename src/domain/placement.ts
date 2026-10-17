@@ -134,6 +134,64 @@ function matchedEdges(start: number, size: number, targets: readonly number[]): 
   return found
 }
 
+export type ResizeBox = {
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+}
+
+type EdgeAnchor = "middle-left" | "middle-right" | "top-center" | "bottom-center"
+
+function edgeAnchor(anchor: string | null): EdgeAnchor | null {
+  switch (anchor) {
+    case "middle-left":
+    case "middle-right":
+    case "top-center":
+    case "bottom-center":
+      return anchor
+    default:
+      return null
+  }
+}
+
+export function resizeKeepingRatio(oldBox: ResizeBox, newBox: ResizeBox, anchor: string | null): ResizeBox {
+  const edge = edgeAnchor(anchor)
+  if (!edge || oldBox.width === 0 || oldBox.height === 0) return newBox
+  const scale = edge === "middle-left" || edge === "middle-right" ? newBox.width / oldBox.width : newBox.height / oldBox.height
+  if (!Number.isFinite(scale)) return oldBox
+  const fixed = fixedEdgePoint(edge, oldBox.width, oldBox.height)
+  const cos = Math.cos(oldBox.rotation)
+  const sin = Math.sin(oldBox.rotation)
+  const dx = fixed.x * (1 - scale)
+  const dy = fixed.y * (1 - scale)
+  return {
+    x: oldBox.x + dx * cos - dy * sin,
+    y: oldBox.y + dx * sin + dy * cos,
+    width: oldBox.width * scale,
+    height: oldBox.height * scale,
+    rotation: oldBox.rotation,
+  }
+}
+
+function fixedEdgePoint(anchor: EdgeAnchor, width: number, height: number): { x: number; y: number } {
+  switch (anchor) {
+    case "middle-left":
+      return { x: width, y: height / 2 }
+    case "middle-right":
+      return { x: 0, y: height / 2 }
+    case "top-center":
+      return { x: width / 2, y: height }
+    case "bottom-center":
+      return { x: width / 2, y: 0 }
+    default: {
+      const unknown: never = anchor
+      return unknown
+    }
+  }
+}
+
 export function snapAngle(degrees: number): number {
   const turns = [0, 90, 180, 270, 360, -90, -180, -270]
   const nearest = snapValue(degrees, turns, 2)

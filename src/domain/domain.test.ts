@@ -2,7 +2,7 @@ import { PDFDocument } from "pdf-lib"
 import { describe, expect, it } from "vitest"
 import { emptyPlate, emptySide, parseSideDocument, textStyle, type SideDocument } from "./document"
 import { impose, mirrorAxis } from "./impose"
-import { alignFrame, photoPlacement, snapAngle, snapFrame } from "./placement"
+import { alignFrame, photoPlacement, resizeKeepingRatio, snapAngle, snapFrame } from "./placement"
 import { buildPdf } from "./pdf"
 import { mixSeed } from "./random"
 import { resolveDocument, type LibrarySnapshot } from "./resolve"
@@ -247,6 +247,51 @@ describe("resolveDocument", () => {
     expect(lock.broken).toBe(false)
   })
 })
+
+describe("resizeKeepingRatio", () => {
+  const box = { x: 10, y: 20, width: 40, height: 20, rotation: 0 }
+
+  it("scales both axes from a side handle and keeps the opposite edge", () => {
+    const next = resizeKeepingRatio(box, { ...box, width: 80 }, "middle-right")
+    expect(next.width).toBeCloseTo(80)
+    expect(next.height).toBeCloseTo(40)
+    expect(next.x).toBeCloseTo(10)
+    expect(next.y).toBeCloseTo(10)
+  })
+
+  it("scales both axes from the bottom and keeps the top edge", () => {
+    const next = resizeKeepingRatio(box, { ...box, height: 40 }, "bottom-center")
+    expect(next.width).toBeCloseTo(80)
+    expect(next.height).toBeCloseTo(40)
+    expect(next.x).toBeCloseTo(-10)
+    expect(next.y).toBeCloseTo(20)
+  })
+
+  it("leaves corner boxes alone", () => {
+    const proposed = { ...box, width: 80, height: 10 }
+    expect(resizeKeepingRatio(box, proposed, "bottom-right")).toEqual(proposed)
+  })
+
+  it("keeps the fixed point when the box is rotated", () => {
+    const rotated = { ...box, rotation: Math.PI / 2 }
+    const next = resizeKeepingRatio(rotated, { ...rotated, width: 80 }, "middle-right")
+    const before = worldPoint(rotated, 0, rotated.height / 2)
+    const after = worldPoint(next, 0, next.height / 2)
+    expect(after.x).toBeCloseTo(before.x)
+    expect(after.y).toBeCloseTo(before.y)
+    expect(next.width).toBeCloseTo(80)
+    expect(next.height).toBeCloseTo(40)
+  })
+})
+
+function worldPoint(box: { x: number; y: number; rotation: number }, localX: number, localY: number) {
+  const cos = Math.cos(box.rotation)
+  const sin = Math.sin(box.rotation)
+  return {
+    x: box.x + localX * cos - localY * sin,
+    y: box.y + localX * sin + localY * cos,
+  }
+}
 
 describe("mixSeed", () => {
   it("changes with the copy index", () => {

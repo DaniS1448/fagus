@@ -1,8 +1,32 @@
 import Konva from "konva"
 import { useLayoutEffect, useRef } from "react"
-import { alignFrame, snapAngle, type AlignLine } from "../domain/placement"
+import { alignFrame, resizeKeepingRatio, snapAngle, type AlignLine } from "../domain/placement"
 import type { ResolvedSide } from "../domain/resolve"
 import { paintContent } from "./paintSide"
+
+let freeRatio = false
+let activeTransformer: Konva.Transformer | null = null
+
+function syncFreeRatio(event: Event) {
+  if (!("ctrlKey" in event)) return
+  freeRatio = Boolean((event as MouseEvent).ctrlKey)
+  activeTransformer?.keepRatio(!freeRatio)
+}
+
+if (typeof window !== "undefined") {
+  const view = window as Window & { __fagusSyncRatio?: (event: Event) => void }
+  if (view.__fagusSyncRatio) {
+    window.removeEventListener("keydown", view.__fagusSyncRatio, true)
+    window.removeEventListener("keyup", view.__fagusSyncRatio, true)
+    window.removeEventListener("pointerdown", view.__fagusSyncRatio, true)
+    window.removeEventListener("mousemove", view.__fagusSyncRatio, true)
+  }
+  view.__fagusSyncRatio = syncFreeRatio
+  window.addEventListener("keydown", syncFreeRatio, true)
+  window.addEventListener("keyup", syncFreeRatio, true)
+  window.addEventListener("pointerdown", syncFreeRatio, true)
+  window.addEventListener("mousemove", syncFreeRatio, true)
+}
 
 type Frame = {
   x: number
@@ -47,6 +71,7 @@ export function BookmarkStage(props: StageProps) {
     })
     stageRef.current = stage
     return () => {
+      if (activeTransformer?.getStage() === stage) activeTransformer = null
       stage.destroy()
       stageRef.current = null
       container.replaceChildren()
@@ -237,27 +262,33 @@ function attachTransformer(layer: Konva.Layer, selectedId: string | null, pxPerM
           id: "transformer",
           rotateEnabled: true,
           flipEnabled: false,
+          keepRatio: true,
+          shiftBehavior: "none",
           anchorSize: 8,
           borderStroke: "#1F3A2E",
           anchorStroke: "#1F3A2E",
           anchorFill: "#F4F0E6",
-          boundBoxFunc: (oldBox, newBox) => {
-            if (newBox.width < 4 * pxPerMm || newBox.height < 4 * pxPerMm) return oldBox
-            return newBox
-          },
         })
   if (!(found instanceof Konva.Transformer)) layer.add(transformer)
+  activeTransformer = transformer
+  transformer.keepRatio(!freeRatio)
+  transformer.boundBoxFunc((oldBox, newBox) => {
+    const min = 4 * pxPerMm
+    if (freeRatio) {
+      if (Math.abs(newBox.width) < min || Math.abs(newBox.height) < min) return oldBox
+      return newBox
+    }
+    const locked = resizeKeepingRatio(oldBox, newBox, transformer.getActiveAnchor())
+    if (Math.abs(locked.width) < min || Math.abs(locked.height) < min) return oldBox
+    return locked
+  })
   if (!selectedId) {
     transformer.nodes([])
     return
   }
-  const node = layer.findOne(`#${cssEscape(selectedId)}`)
+  const node = layer.findOne(`#${selectedId}`)
   transformer.nodes(node instanceof Konva.Group ? [node] : [])
   transformer.moveToTop()
-}
-
-function cssEscape(value: string): string {
-  return typeof CSS !== "undefined" && CSS.escape ? CSS.escape(value) : value
 }
 
 function Ruler({
