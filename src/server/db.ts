@@ -125,6 +125,22 @@ ensureColumn(
   "ALTER TABLE identities ADD COLUMN group_id TEXT REFERENCES identity_groups(id) ON DELETE SET NULL",
 )
 
+sqlite.pragma("wal_checkpoint(TRUNCATE)")
+
+function checkpointAndClose() {
+  if (!sqlite.open) return
+  try {
+    sqlite.pragma("wal_checkpoint(TRUNCATE)")
+  } finally {
+    if (sqlite.open) sqlite.close()
+  }
+}
+
+process.on("exit", checkpointAndClose)
+process.on("SIGINT", () => {
+  process.exit(130)
+})
+
 export const db = drizzle(sqlite, { schema })
 
 export function now(): number {
